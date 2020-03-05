@@ -14,6 +14,11 @@ class SumActivityResponse {
 }
 
 class SumActivityHandler extends ActivityRequestHandler<SumActivityRequest, SumActivityResponse> {
+    
+    constructor() {
+        super(SumActivityRequest);
+    }
+
     public handle(request: SumActivityRequest): SumActivityResponse {
         const total = request.values.reduce((a, b) => a + b, 0);
         return { total: total };
@@ -39,6 +44,10 @@ class SumFlowState {
 }
 
 class SumFlowHandler extends FlowRequestHandler<SumFlowRequest, SumFlowResponse, SumFlowState> {
+    
+    constructor(mediator: Mediator) {        
+        super(SumFlowRequest, SumFlowResponse, SumFlowState, mediator);
+    }
 
     build(flowBuilder: FlowDefinition<SumFlowRequest, SumFlowResponse, SumFlowState>): void {
         flowBuilder
@@ -70,8 +79,8 @@ describe('Mediator', () => {
         // TODO 04Mar20: What would be the best way to register these handlers?
         const mediator = new Mediator();
         mediator
-            .registerHandler(new SumFlowHandler(SumFlowRequest, SumFlowResponse, SumFlowState, mediator))
-            .registerHandler(new SumActivityHandler(SumActivityRequest));
+            .registerHandler(new SumFlowHandler(mediator))
+            .registerHandler(new SumActivityHandler());
 
         const request = new SumFlowRequest();
         request.a = 200;

@@ -19,8 +19,8 @@ class ExampleHandler extends ActivityRequestHandler<ExampleActivityRequest, Exam
     }
 }
 
-class ExampleFlowRequest extends ActivityRequest<ExampleActivityResponse> {
-    constructor() { super(ExampleActivityRequest, ExampleActivityResponse); }
+class ExampleFlowRequest extends ActivityRequest<ExampleFlowResponse> {
+    constructor() { super(ExampleFlowRequest, ExampleFlowResponse); }
     input: number;
 }
 
@@ -32,28 +32,32 @@ class ExampleFlowState {
     value: number;
 }
 
-// class ExampleFlowHandler extends FlowRequestHandler<ExampleFlowRequest, ExampleFlowResponse, ExampleFlowState> {
+class ExampleFlowHandler extends FlowRequestHandler<ExampleFlowRequest, ExampleFlowResponse, ExampleFlowState> {
 
-    // build(flowBuilder: FlowBuilder<ExampleFlowState>): void {
-    //     flowBuilder
-    //         .start(ExampleFlowRequest,
-    //             (request, state) => { state.value = request.input; })
-            
-    //         .perform("MyActivity", ExampleActivityRequest, ExampleActivityResponse,
-    //             (request, state) => { request.input = state.value; },
-    //             (response, state) => { state.value = response.output; })
-            
-    //         .switchOn("Input number", state => state.value,
-    //             when => when
-    //                 .equal(653).goto("Somewhere")
-    //                 .true(value => value > 200).continue())
-    //         .else().continue()
+    constructor(mediator: Mediator) {        
+        super(ExampleFlowRequest, ExampleFlowResponse, ExampleFlowState, mediator);
+    }
 
-    //         .end(ExampleFlowResponse,
-    //             (response, state) => { response.output = state.value; })
-    //         ;
-    // }
-// }
+    build(flowBuilder: FlowDefinition<ExampleFlowRequest, ExampleFlowResponse, ExampleFlowState>): void {
+        flowBuilder
+            .start(
+                (request, state) => { state.value = request.input; })
+
+            .perform("MyActivity", ExampleActivityRequest, ExampleActivityResponse,
+                (request, state) => { request.input = state.value; },
+                (response, state) => { state.value = response.output; })
+
+            // .switchOn("Input number", state => state.value,
+            //     when => when
+            //         .equal(653).goto("Somewhere")
+            //         .true(value => value > 200).continue())
+            // .else().continue()
+
+            .end(ExampleFlowResponse,
+                (response, state) => { response.output = state.value; })
+            ;
+    }
+}
 
 describe('Mediator', () => {
 
@@ -77,7 +81,8 @@ describe('Mediator', () => {
 
         const mediator = new Mediator();
 
-        // mediator.registerHandler(new ExampleFlowHandler(ExampleFlowRequest, ExampleFlowResponse, ExampleFlowState));
+        const exampleFlowHandler = new ExampleFlowHandler(mediator);
+        mediator.registerHandler(exampleFlowHandler);
 
         const request = new ExampleFlowRequest();
         request.input = 616;
