@@ -1,4 +1,4 @@
-import { FlowDefinition } from "./FlowDefinition";
+import { FlowBuilder } from "./FlowBuilder";
 import { ActivityRequest, ActivityRequestHandler } from "./FlowRequest";
 import { Mediator } from "./Mediator";
 
@@ -6,7 +6,7 @@ export abstract class FlowRequestHandler<TReq extends ActivityRequest<TRes>, TRe
 
     private ResponseType: new () => TRes;
     private StateType: new () => TState;
-    private flowDefinition: FlowDefinition<TReq, TRes, TState>;
+    private flowDefinition: FlowBuilder<TReq, TRes, TState>;
     private mediator: Mediator;
 
     constructor(RequestType: new () => TReq, ResponseType: new () => TRes, StateType: new () => TState, mediator: Mediator) {
@@ -16,13 +16,13 @@ export abstract class FlowRequestHandler<TReq extends ActivityRequest<TRes>, TRe
         this.ResponseType = ResponseType;
         this.StateType = StateType;
 
-        this.flowDefinition = new FlowDefinition<TReq, TRes, TState>();
+        this.flowDefinition = new FlowBuilder<TReq, TRes, TState>();
         this.build(this.flowDefinition);
 
         this.mediator = mediator;
     }
 
-    abstract build(flowBuilder: FlowDefinition<TReq, TRes, TState>): void;
+    abstract build(flowBuilder: FlowBuilder<TReq, TRes, TState>): void;
 
     handle(request: TReq): TRes {
 
@@ -36,7 +36,8 @@ export abstract class FlowRequestHandler<TReq extends ActivityRequest<TRes>, TRe
             const stepRequest = new step.RequestType();
             step.bindRequest(stepRequest, state);
 
-            const stepResponse = this.mediator.send(stepRequest);
+            // TODO 05Mar20: How could we pick up that we need to store the state and await the response?
+            const stepResponse = this.mediator.sendRequest(stepRequest);
 
             step.bindState(stepResponse, state);
         }

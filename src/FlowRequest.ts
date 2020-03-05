@@ -4,16 +4,16 @@ export abstract class ActivityRequest<T> {
     handlerKey: string;
 
     constructor(req: new () => ActivityRequest<T>, res: new () => T) {
-        this.handlerKey = `${req.name}=>${res.name}`;
+        this.handlerKey = `${req.name}>>>${res.name}`;
     }
 }
 
 export abstract class ActivityRequestHandler<TReq extends ActivityRequest<TRes>, TRes> {
 
-    registrationKey: string;
+    key: string;
 
     constructor(RequestType: new () => TReq) {
-        this.registrationKey = new RequestType().handlerKey;
+        this.key = new RequestType().handlerKey;
     }
 
     abstract handle(request: TReq): TRes;

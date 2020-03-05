@@ -2,7 +2,7 @@ import { expect } from "chai";
 import { ActivityRequest, ActivityRequestHandler } from "../src/FlowRequest";
 import { FlowRequestHandler } from "../src/FlowRequestHandler";
 import { Mediator } from "../src/Mediator";
-import { FlowDefinition } from "../src/FlowDefinition";
+import { FlowBuilder } from "../src/FlowBuilder";
 
 class SumActivityRequest extends ActivityRequest<SumActivityResponse> {
     constructor() { super(SumActivityRequest, SumActivityResponse); }
@@ -49,9 +49,9 @@ class SumFlowHandler extends FlowRequestHandler<SumFlowRequest, SumFlowResponse,
         super(SumFlowRequest, SumFlowResponse, SumFlowState, mediator);
     }
 
-    build(flowBuilder: FlowDefinition<SumFlowRequest, SumFlowResponse, SumFlowState>): void {
+    build(flowBuilder: FlowBuilder<SumFlowRequest, SumFlowResponse, SumFlowState>): void {
         flowBuilder
-            .start((req, state) => {
+            .initialise((req, state) => {
                 state.total = 0;
                 state.a = req.a;
                 state.b = req.b;
@@ -66,7 +66,7 @@ class SumFlowHandler extends FlowRequestHandler<SumFlowRequest, SumFlowResponse,
                 (req, state) => { req.values = [state.total, state.c]; },
                 (res, state) => { state.total = res.total; })
 
-            .end(SumFlowResponse, (res, state) => {
+            .finalise(SumFlowResponse, (res, state) => {
                 res.total = state.total;
             });
     }
@@ -74,7 +74,7 @@ class SumFlowHandler extends FlowRequestHandler<SumFlowRequest, SumFlowResponse,
 
 describe('Mediator', () => {
 
-    it.only('returns the total of the inputs', () => {
+    it('returns the total of the inputs', () => {
 
         // TODO 04Mar20: What would be the best way to register these handlers?
         const mediator = new Mediator();
@@ -87,7 +87,7 @@ describe('Mediator', () => {
         request.b = 210;
         request.c = 206;
 
-        const response = mediator.send(request) as SumFlowResponse;
+        const response = mediator.sendRequest(request) as SumFlowResponse;
 
         expect(response?.total).to.be.equal(616);
     });

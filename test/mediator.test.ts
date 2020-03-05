@@ -2,7 +2,7 @@ import { expect } from "chai";
 import { ActivityRequest, ActivityRequestHandler } from "../src/FlowRequest";
 import { FlowRequestHandler } from "../src/FlowRequestHandler";
 import { Mediator } from "../src/Mediator";
-import { FlowDefinition } from "../src/FlowDefinition";
+import { FlowBuilder } from "../src/FlowBuilder";
 
 class ExampleActivityRequest extends ActivityRequest<ExampleActivityResponse> {
     constructor() { super(ExampleActivityRequest, ExampleActivityResponse); }
@@ -38,9 +38,9 @@ class ExampleFlowHandler extends FlowRequestHandler<ExampleFlowRequest, ExampleF
         super(ExampleFlowRequest, ExampleFlowResponse, ExampleFlowState, mediator);
     }
 
-    build(flowBuilder: FlowDefinition<ExampleFlowRequest, ExampleFlowResponse, ExampleFlowState>): void {
+    build(flowBuilder: FlowBuilder<ExampleFlowRequest, ExampleFlowResponse, ExampleFlowState>): void {
         flowBuilder
-            .start(
+            .initialise(
                 (request, state) => { state.value = request.input; })
 
             .perform("MyActivity", ExampleActivityRequest, ExampleActivityResponse,
@@ -53,7 +53,7 @@ class ExampleFlowHandler extends FlowRequestHandler<ExampleFlowRequest, ExampleF
             //         .true(value => value > 200).continue())
             // .else().continue()
 
-            .end(ExampleFlowResponse,
+            .finalise(ExampleFlowResponse,
                 (response, state) => { response.output = state.value; })
             ;
     }
@@ -71,7 +71,7 @@ describe('Mediator', () => {
         const request = new ExampleActivityRequest();
         request.input = 616;
 
-        const response = mediator.send(request) as ExampleActivityResponse;
+        const response = mediator.sendRequest(request) as ExampleActivityResponse;
 
         expect(response).to.be.not.null;
         expect(response.output).to.be.equal(request.input);
@@ -87,7 +87,7 @@ describe('Mediator', () => {
         const request = new ExampleFlowRequest();
         request.input = 616;
 
-        const response = mediator.send(request) as ExampleFlowResponse;
+        const response = mediator.sendRequest(request) as ExampleFlowResponse;
 
         expect(response).to.be.not.null;
     });

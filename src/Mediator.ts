@@ -6,12 +6,12 @@ export class Mediator {
 
     public registerHandler<T extends ActivityRequestHandler<TReq, TRes>, TReq extends ActivityRequest<TRes>, TRes>(handler: T) {
 
-        this.handlerMap[handler.registrationKey] = handler;
+        this.handlerMap[handler.key] = handler;
 
         return this;
     }
 
-    public send<TReq extends ActivityRequest<TRes>, TRes>(request: TReq) : TRes {
+    public sendRequest<TReq extends ActivityRequest<TRes>, TRes>(request: TReq) : TRes {
 
         const requestHandlerKey = request.handlerKey;
 
