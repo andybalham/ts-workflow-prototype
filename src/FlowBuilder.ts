@@ -1,39 +1,43 @@
 import { ActivityRequest } from "./FlowRequest";
 
-export class FlowBuilder<TFlowReq extends ActivityRequest<TFlowRes>, TFlowRes, TState> {
-
-    // TODO 05Mar20: Should the following be in a separate class, i.e. have a builder that outputs a definition
+export class FlowDefinition<TFlowReq extends ActivityRequest<TFlowRes>, TFlowRes, TState> {
     initialiseState: (request: TFlowReq, state: TState) => void;
     bindResponse: (response: TFlowRes, state: TState) => void;
-    steps: any[] = [];
+    steps: FlowStep[] = [];
+}
+
+export class FlowBuilder<TFlowReq extends ActivityRequest<TFlowRes>, TFlowRes, TState> {
+
+    flowDefinition = new FlowDefinition<TFlowReq, TFlowRes, TState>();
 
     initialise(initialiseState: (request: TFlowReq, state: TState) => void) {
-        this.initialiseState = initialiseState;
+        this.flowDefinition.initialiseState = initialiseState;
         return this;
     }
 
     finalise(ResponseType: new () => TFlowRes, bindResponse: (response: TFlowRes, state: TState) => void) {
-        this.bindResponse = bindResponse;
+        this.flowDefinition.bindResponse = bindResponse;
     }
 
     perform<TReq extends ActivityRequest<TRes>, TRes>(stepName: string, RequestType: new () => TReq, ResponseType: new () => TRes,
         bindRequest: (request: TReq, state: TState) => void, bindState: (response: TRes, state: TState) => void) {
 
-        // TODO 04Mar20: How can we switch on the type of the step, e.g. activity, decision, goto, label
-
-        this.steps.push({
+        const activityFlowStep: ActivityFlowStep<TReq, TRes, TState> = {
+            type: FlowStepType.Activity,
             stepName: stepName,
             RequestType: RequestType,
             ResponseType: ResponseType,
             bindRequest: bindRequest,
             bindState: bindState
-        });
+        };
+
+        this.flowDefinition.steps.push(activityFlowStep);
 
         return this;
     }
 
-    switchOn<TSwitch>(stepName: string, getSwitchValue: (state: TState) => TSwitch,
-        buildWhen: (when: SwitchWhenBuilder<TSwitch, TFlowReq, TFlowRes, TState>) => void): SwitchElseBuilder<TFlowReq, TFlowRes, TState> {
+    when<TDecision>(stepName: string, getDecisionValue: (state: TState) => TDecision,
+        buildCases: (cases: SwitchCaseBuilder<TDecision, TFlowReq, TFlowRes, TState>) => void): SwitchElseBuilder<TFlowReq, TFlowRes, TState> {
 
         // TODO 05Mar20: How do we capture the branching?
 
@@ -56,7 +60,7 @@ export class FlowBuilder<TFlowReq extends ActivityRequest<TFlowRes>, TFlowRes, T
     }
 }
 
-export class SwitchWhenBuilder<TSwitch, TFlowReq extends ActivityRequest<TFlowRes>, TFlowRes, TState> {
+export class SwitchCaseBuilder<TDecision, TFlowReq extends ActivityRequest<TFlowRes>, TFlowRes, TState> {
 
     private builder: FlowBuilder<TFlowReq, TFlowRes, TState>;
 
@@ -64,11 +68,7 @@ export class SwitchWhenBuilder<TSwitch, TFlowReq extends ActivityRequest<TFlowRe
         this.builder = builder;
     }
 
-    equal(target: TSwitch): SwitchBranchTargetBuilder<TSwitch, TFlowReq, TFlowRes, TState> {
-        return new SwitchBranchTargetBuilder(this);
-    }
-
-    true(targetFunction: (switchValue: TSwitch) => boolean): SwitchBranchTargetBuilder<TSwitch, TFlowReq, TFlowRes, TState> {
+    true(targetFunction: (switchValue: TDecision) => boolean): SwitchBranchTargetBuilder<TDecision, TFlowReq, TFlowRes, TState> {
         return new SwitchBranchTargetBuilder(this);
     }
 }
@@ -86,19 +86,19 @@ export class SwitchElseBuilder<TFlowReq extends ActivityRequest<TFlowRes>, TFlow
     }
 }
 
-export class SwitchBranchTargetBuilder<TSwitch, TFlowReq extends ActivityRequest<TFlowRes>, TFlowRes, TState> {
+export class SwitchBranchTargetBuilder<TDecision, TFlowReq extends ActivityRequest<TFlowRes>, TFlowRes, TState> {
 
-    private builder: SwitchWhenBuilder<TSwitch, TFlowReq, TFlowRes, TState>;
+    private builder: SwitchCaseBuilder<TDecision, TFlowReq, TFlowRes, TState>;
 
-    constructor(builder: SwitchWhenBuilder<TSwitch, TFlowReq, TFlowRes, TState>) {
+    constructor(builder: SwitchCaseBuilder<TDecision, TFlowReq, TFlowRes, TState>) {
         this.builder = builder;
     }
 
-    goto(stepName: string): SwitchWhenBuilder<TSwitch, TFlowReq, TFlowRes, TState> {
+    goto(stepName: string): SwitchCaseBuilder<TDecision, TFlowReq, TFlowRes, TState> {
         return this.builder;
     }
 
-    continue(): SwitchWhenBuilder<TSwitch, TFlowReq, TFlowRes, TState> {
+    continue(): SwitchCaseBuilder<TDecision, TFlowReq, TFlowRes, TState> {
         return this.builder;
     }
 }
@@ -118,4 +118,52 @@ export class SwitchElseTargetBuilder<TFlowReq extends ActivityRequest<TFlowRes>,
     continue(): FlowBuilder<TFlowReq, TFlowRes, TState> {
         return this.builder;
     }
+}
+
+export enum FlowStepType {
+    Activity,
+    Decision,
+    Goto,
+    Label,
+    End
+}
+
+export abstract class FlowStep {
+    readonly type: FlowStepType;
+    readonly stepName: string;
+}
+
+export class ActivityFlowStep<TReq extends ActivityRequest<TRes>, TRes, TState> extends FlowStep {
+    readonly RequestType: new () => TReq;
+    readonly ResponseType: new () => TRes;
+    readonly bindRequest: (request: TReq, state: TState) => void;
+    readonly bindState: (response: TRes, state: TState) => void;
+}
+
+export class DecisionFlowStep<TDecision, TState> extends FlowStep {
+    readonly getDecisionValue: (state: TState) => TDecision;
+    readonly caseBranches: CaseDecisionBranch<TDecision>[];
+    readonly elseBranch: ElseDecisionBranch[];
+}
+
+export class DecisionBranch {
+    readonly target: DecisionBranchTarget;
+}
+
+export class CaseDecisionBranch<TDecision> extends DecisionBranch {
+    readonly isTrue: (value: TDecision) => boolean;
+}
+
+export class ElseDecisionBranch extends DecisionBranch {
+}
+
+export enum DecisionBranchTargetType {
+    Goto,
+    Continue,
+    End
+}
+
+export class DecisionBranchTarget {
+    readonly type: DecisionBranchTargetType;
+    readonly stepName?: string;
 }

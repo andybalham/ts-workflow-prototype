@@ -54,22 +54,26 @@ class SwitchTestFlowHandler extends FlowRequestHandler<SwitchTestFlowRequest, Sw
 
     build(flowDefinition: FlowBuilder<SwitchTestFlowRequest, SwitchTestFlowResponse, SwitchTestFlowState>): void {
         flowDefinition
-            .initialise((req, state) => { state.value = req.value })
+            .initialise(
+                (req, state) => { state.value = req.value })
 
-            .switchOn("Value", state => state.value, when => when
+            .when("Value", state => state.value, cases => cases
                 .true(value => value >= 70).goto("SetRatingOfGood")
                 .true(value => value >= 40).goto("SetRatingOfOk")
             ).else().continue()
 
-            .perform("SetRatingOfPoor", NullActivityRequest, NullActivityResponse, (_req, _state) => { },
+            .perform("SetRatingOfPoor", NullActivityRequest, NullActivityResponse,
+                (_req, _state) => { },
                 (_res, state) => { state.rating = Rating.Poor })
             .end()
 
-            .perform("SetRatingOfOk", NullActivityRequest, NullActivityResponse, (_req, _state) => { },
+            .perform("SetRatingOfOk", NullActivityRequest, NullActivityResponse,
+                (_req, _state) => { },
                 (_res, state) => { state.rating = Rating.OK })
             .end()
 
-            .perform("SetRatingOfGood", NullActivityRequest, NullActivityResponse, (_req, _state) => { },
+            .perform("SetRatingOfGood", NullActivityRequest, NullActivityResponse,
+                (_req, _state) => { },
                 (_res, state) => { state.rating = Rating.Good })
             .end()
 
@@ -102,5 +106,4 @@ describe("Switch test", () => {
             expect(response?.rating).to.be.equal(theory.expectedRating);
         });
     });
-
-})
+});
