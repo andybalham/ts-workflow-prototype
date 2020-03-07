@@ -58,8 +58,8 @@ class SwitchTestFlowHandler extends FlowRequestHandler<SwitchTestFlowRequest, Sw
                 (req, state) => { state.value = req.value })
 
             .when("Value", state => state.value, cases => cases
-                .true(value => value >= 70).goto("SetRatingOfGood")
-                .true(value => value >= 40).goto("SetRatingOfOk")
+                .isTrue(value => value >= 70).goto("SetRatingOfGood")
+                .isTrue(value => value >= 40).goto("SetRatingOfOk")
             ).else().continue()
 
             .perform("SetRatingOfPoor", NullActivityRequest, NullActivityResponse,
@@ -95,13 +95,12 @@ describe("Switch test", () => {
 
             const mediator = new Mediator();
             mediator
-                .registerHandler(new SwitchTestFlowHandler(mediator))
                 .registerHandler(new NullActivityHandler());
 
             const request = new SwitchTestFlowRequest();
             request.value = theory.value;
 
-            const response = mediator.sendRequest(request) as SwitchTestFlowResponse;
+            const response = new SwitchTestFlowHandler(mediator).handle(request);
 
             expect(response?.rating).to.be.equal(theory.expectedRating);
         });

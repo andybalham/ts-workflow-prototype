@@ -79,7 +79,6 @@ describe('Mediator', () => {
         // TODO 04Mar20: What would be the best way to register these handlers?
         const mediator = new Mediator();
         mediator
-            .registerHandler(new SumFlowHandler(mediator))
             .registerHandler(new SumActivityHandler());
 
         const request = new SumFlowRequest();
@@ -87,7 +86,7 @@ describe('Mediator', () => {
         request.b = 210;
         request.c = 206;
 
-        const response = mediator.sendRequest(request) as SumFlowResponse;
+        const response = new SumFlowHandler(mediator).handle(request);
 
         expect(response?.total).to.be.equal(616);
     });

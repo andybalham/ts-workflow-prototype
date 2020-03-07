@@ -78,7 +78,7 @@ export abstract class FlowRequestHandler<TReq extends ActivityRequest<TRes>, TRe
             }
         }
 
-        const decisionBranch: DecisionBranch = (trueBranch === undefined) ? step.ElseBranch : trueBranch;
+        const decisionBranch: DecisionBranch = (trueBranch === undefined) ? step.elseBranch : trueBranch;
 
         const nextStepIndex = this.getNextStepIndex(decisionBranch.target, stepIndex);
 
@@ -91,7 +91,7 @@ export abstract class FlowRequestHandler<TReq extends ActivityRequest<TRes>, TRe
 
         switch (target.type) {
             case DecisionBranchTargetType.Continue:
-                nextStepIndex = currentStepIndex;
+                nextStepIndex = currentStepIndex + 1;
                 break;
 
             case DecisionBranchTargetType.End:
@@ -103,7 +103,7 @@ export abstract class FlowRequestHandler<TReq extends ActivityRequest<TRes>, TRe
                 break;
         }
 
-        if (nextStepIndex = -1) throw Error(`No step could be found with the name: ${target.stepName}`);
+        if (nextStepIndex === -1) throw Error(`No step could be found with the name: ${target.stepName}`);
 
         return nextStepIndex;
     }
