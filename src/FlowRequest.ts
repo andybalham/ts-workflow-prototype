@@ -16,6 +16,7 @@ export abstract class ActivityRequestHandler<TReq extends ActivityRequest<TRes>,
         this.key = new RequestType().handlerKey;
     }
 
+    // TODO 08Mar20: Is this where we pass through the FlowContext?
     abstract handle(request: TReq): TRes;
 }
 

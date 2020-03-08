@@ -53,28 +53,32 @@ class SwitchTestFlowHandler extends FlowRequestHandler<SwitchTestFlowRequest, Sw
     }
 
     build(flowDefinition: FlowBuilder<SwitchTestFlowRequest, SwitchTestFlowResponse, SwitchTestFlowState>): void {
+        // TODO 07Mar20: Can we force initialise() to be first and finalise() last?
         flowDefinition
             .initialise(
                 (req, state) => { state.value = req.value })
 
-            .when("Value", state => state.value, cases => cases
-                .isTrue(value => value >= 70).goto("SetRatingOfGood")
-                .isTrue(value => value >= 40).goto("SetRatingOfOk")
+            .evaluate("Value", state => state.value, cases => cases
+                .when(value => value >= 70).goto("SetRatingOfGood")
+                .when(value => value >= 40).goto("SetRatingOfOk")
             ).else().continue()
 
             .perform("SetRatingOfPoor", NullActivityRequest, NullActivityResponse,
                 (_req, _state) => { },
                 (_res, state) => { state.rating = Rating.Poor })
-            .end()
+            .goto("End")
 
             .perform("SetRatingOfOk", NullActivityRequest, NullActivityResponse,
                 (_req, _state) => { },
                 (_res, state) => { state.rating = Rating.OK })
-            .end()
+            .goto("End")
 
             .perform("SetRatingOfGood", NullActivityRequest, NullActivityResponse,
                 (_req, _state) => { },
                 (_res, state) => { state.rating = Rating.Good })
+            .goto("End")
+
+            .label("End")
             .end()
 
             .finalise(SwitchTestFlowResponse,

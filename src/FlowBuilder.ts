@@ -29,10 +29,10 @@ export class FlowBuilder<TFlowReq extends ActivityRequest<TFlowRes>, TFlowRes, T
         return this;
     }
 
-    when<TDecision>(stepName: string, getDecisionValue: (state: TState) => TDecision,
+    evaluate<TDecision>(stepName: string, getValue: (state: TState) => TDecision,
         buildCases: (cases: SwitchCaseBuilder<TDecision, TFlowReq, TFlowRes, TState>) => void): SwitchElseBuilder<TDecision, TFlowReq, TFlowRes, TState> {
 
-        const decisionFlowStep = new DecisionFlowStep(stepName, getDecisionValue);
+        const decisionFlowStep = new DecisionFlowStep(stepName, getValue);
 
         const switchCaseBuilder = new SwitchCaseBuilder<TDecision, TFlowReq, TFlowRes, TState>(decisionFlowStep.caseBranches);
         buildCases(switchCaseBuilder);
@@ -43,12 +43,14 @@ export class FlowBuilder<TFlowReq extends ActivityRequest<TFlowRes>, TFlowRes, T
     }
 
     label(stepName: string) {
-        // TODO 05Mar20: Capture the label
+        const labelFlowStep = new LabelFlowStep(stepName);
+        this.flowDefinition.steps.push(labelFlowStep);
         return this;
     }
 
     goto(stepName: string) {
-        // TODO 05Mar20: Capture the goto
+        const gotoFlowStep = new GotoFlowStep(stepName);
+        this.flowDefinition.steps.push(gotoFlowStep);
         return this;
     }
 
@@ -67,7 +69,7 @@ export class SwitchCaseBuilder<TDecision, TFlowReq extends ActivityRequest<TFlow
         this.branches = branches;
     }
 
-    isTrue(isTrue: (switchValue: TDecision) => boolean): SwitchCaseTargetBuilder<TDecision, TFlowReq, TFlowRes, TState> {
+    when(isTrue: (switchValue: TDecision) => boolean): SwitchCaseTargetBuilder<TDecision, TFlowReq, TFlowRes, TState> {
 
         const branch: CaseDecisionBranch<TDecision> = {
             isTrue: isTrue
@@ -173,11 +175,11 @@ export class SwitchElseTargetBuilder<TFlowReq extends ActivityRequest<TFlowRes>,
 }
 
 export enum FlowStepType {
-    Activity,
-    Decision,
-    Goto,
-    Label,
-    End
+    Activity = "Activity",
+    Decision = "Decision",
+    Goto = "Goto",
+    Label = "Label",
+    End = "End"
 }
 
 export abstract class FlowStep {
@@ -212,16 +214,16 @@ export class ActivityFlowStep<TReq extends ActivityRequest<TRes>, TRes, TState> 
 
 export class DecisionFlowStep<TDecision, TState> extends FlowStep {
 
-    constructor(stepName: string, getDecisionValue: (state: TState) => TDecision) {
-        
+    constructor(stepName: string, getValue: (state: TState) => TDecision) {
+
         super(FlowStepType.Decision, stepName);
 
-        this.getDecisionValue = getDecisionValue;
+        this.getValue = getValue;
         this.caseBranches = [];
         this.elseBranch = new ElseDecisionBranch();
     }
 
-    readonly getDecisionValue: (state: TState) => TDecision;
+    readonly getValue: (state: TState) => TDecision;
     readonly caseBranches: CaseDecisionBranch<TDecision>[];
     readonly elseBranch: ElseDecisionBranch;
 }
@@ -230,6 +232,20 @@ export class EndFlowStep extends FlowStep {
     constructor() {
         super(FlowStepType.End);
     }
+}
+
+export class LabelFlowStep extends FlowStep {
+    constructor(stepName: string) {
+        super(FlowStepType.Label, stepName);
+    }
+}
+
+export class GotoFlowStep extends FlowStep {
+    constructor(targetStepName: string) {
+        super(FlowStepType.Goto);
+        this.targetStepName = targetStepName;
+    }
+    readonly targetStepName: string;
 }
 
 export class DecisionBranch {
@@ -244,9 +260,9 @@ export class ElseDecisionBranch extends DecisionBranch {
 }
 
 export enum DecisionBranchTargetType {
-    Goto,
-    Continue,
-    End
+    Goto = "Goto",
+    Continue = "Continue",
+    End = "End"
 }
 
 export class DecisionBranchTarget {
