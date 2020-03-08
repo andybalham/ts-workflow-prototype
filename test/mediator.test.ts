@@ -1,8 +1,7 @@
 import { expect } from "chai";
 import { ActivityRequest, ActivityRequestHandler } from "../src/FlowRequest";
-import { FlowRequestHandler } from "../src/FlowRequestHandler";
 import { Mediator } from "../src/Mediator";
-import { FlowBuilder } from "../src/FlowBuilder";
+import { FlowContext } from "../src/FlowContext";
 
 class ExampleActivityRequest extends ActivityRequest<ExampleActivityResponse> {
     constructor() { super(ExampleActivityRequest, ExampleActivityResponse); }
@@ -14,48 +13,11 @@ class ExampleActivityResponse {
 }
 
 class ExampleHandler extends ActivityRequestHandler<ExampleActivityRequest, ExampleActivityResponse> {
-    public handle(request: ExampleActivityRequest): ExampleActivityResponse {
+    constructor() {
+        super(ExampleActivityRequest);
+    }
+    public handle(_flowContext: FlowContext, request: ExampleActivityRequest): ExampleActivityResponse {
         return { output: request.input };
-    }
-}
-
-class ExampleFlowRequest extends ActivityRequest<ExampleFlowResponse> {
-    constructor() { super(ExampleFlowRequest, ExampleFlowResponse); }
-    input: number;
-}
-
-class ExampleFlowResponse {
-    output: number;
-}
-
-class ExampleFlowState {
-    value: number;
-}
-
-class ExampleFlowHandler extends FlowRequestHandler<ExampleFlowRequest, ExampleFlowResponse, ExampleFlowState> {
-
-    constructor(mediator: Mediator) {        
-        super(ExampleFlowRequest, ExampleFlowResponse, ExampleFlowState, mediator);
-    }
-
-    build(flowBuilder: FlowBuilder<ExampleFlowRequest, ExampleFlowResponse, ExampleFlowState>): void {
-        flowBuilder
-            .initialise(
-                (request, state) => { state.value = request.input; })
-
-            .perform("MyActivity", ExampleActivityRequest, ExampleActivityResponse,
-                (request, state) => { request.input = state.value; },
-                (response, state) => { state.value = response.output; })
-
-            // .switchOn("Input number", state => state.value,
-            //     when => when
-            //         .equal(653).goto("Somewhere")
-            //         .true(value => value > 200).continue())
-            // .else().continue()
-
-            .finalise(ExampleFlowResponse,
-                (response, state) => { response.output = state.value; })
-            ;
     }
 }
 
@@ -65,31 +27,15 @@ describe('Mediator', () => {
 
         const mediator = new Mediator();
 
-        // TODO: How do we register these handlers?
-        mediator.registerHandler(new ExampleHandler(ExampleActivityRequest));
+        mediator.registerHandler(new ExampleHandler());
 
         const request = new ExampleActivityRequest();
         request.input = 616;
 
-        const response = mediator.sendRequest(request) as ExampleActivityResponse;
+        const response = mediator.sendRequest(new FlowContext(), request) as ExampleActivityResponse;
 
         expect(response).to.be.not.null;
         expect(response.output).to.be.equal(request.input);
-    });
-
-    it.only('Mediator can send request to flow handler', () => {
-
-        const mediator = new Mediator();
-
-        const exampleFlowHandler = new ExampleFlowHandler(mediator);
-        mediator.registerHandler(exampleFlowHandler);
-
-        const request = new ExampleFlowRequest();
-        request.input = 616;
-
-        const response = mediator.sendRequest(request) as ExampleFlowResponse;
-
-        expect(response).to.be.not.null;
     });
 
     it('Flow can be built', () => {

@@ -1,4 +1,7 @@
 import { ActivityRequest, ActivityRequestHandler } from "./FlowRequest";
+import { FlowContext } from "./FlowContext";
+
+// TODO 08Mar20: Rename to RequestDispatcher?
 
 export class Mediator {
     
@@ -11,7 +14,7 @@ export class Mediator {
         return this;
     }
 
-    public sendRequest<TReq extends ActivityRequest<TRes>, TRes>(request: TReq) : TRes {
+    public sendRequest<TReq extends ActivityRequest<TRes>, TRes>(flowContext: FlowContext, request: TReq) : TRes {
 
         const requestHandlerKey = request.handlerKey;
 
@@ -21,7 +24,7 @@ export class Mediator {
             throw `No handler found for: ${requestHandlerKey}`;
         }
 
-        const response = handler.handle(request);
+        const response = handler.handle(flowContext, request);
         
         return response;
     }

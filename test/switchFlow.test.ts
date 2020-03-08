@@ -3,6 +3,7 @@ import { FlowRequestHandler } from "../src/FlowRequestHandler";
 import { FlowBuilder } from "../src/FlowBuilder";
 import { Mediator } from "../src/Mediator";
 import { expect } from "chai";
+import { FlowContext } from "../src/FlowContext";
 
 class NullActivityRequest extends ActivityRequest<NullActivityResponse> {
     constructor() {
@@ -19,7 +20,7 @@ class NullActivityHandler extends ActivityRequestHandler<NullActivityRequest, Nu
         super(NullActivityRequest);
     }
 
-    handle(request: NullActivityRequest): NullActivityResponse {
+    handle(flowContext: FlowContext, request: NullActivityRequest): NullActivityResponse {
         return {};
     }
 }
@@ -48,13 +49,14 @@ class SwitchTestFlowState {
 
 class SwitchTestFlowHandler extends FlowRequestHandler<SwitchTestFlowRequest, SwitchTestFlowResponse, SwitchTestFlowState> {
 
+    flowName = SwitchTestFlowHandler.name;
+
     constructor(mediator: Mediator) {
         super(SwitchTestFlowRequest, SwitchTestFlowResponse, SwitchTestFlowState, mediator);
     }
 
-    build(flowDefinition: FlowBuilder<SwitchTestFlowRequest, SwitchTestFlowResponse, SwitchTestFlowState>): void {
-        // TODO 07Mar20: Can we force initialise() to be first and finalise() last?
-        flowDefinition
+    buildFlow(flowDefinition: FlowBuilder<SwitchTestFlowRequest, SwitchTestFlowResponse, SwitchTestFlowState>) {
+        return flowDefinition
             .initialise(
                 (req, state) => { state.value = req.value })
 
@@ -104,8 +106,13 @@ describe("Switch test", () => {
             const request = new SwitchTestFlowRequest();
             request.value = theory.value;
 
-            const response = new SwitchTestFlowHandler(mediator).handle(request);
+            const flowContext = new FlowContext();
+            
+            const response = new SwitchTestFlowHandler(mediator).handle(flowContext, request);
 
+            expect(flowContext.flowName).to.equal(SwitchTestFlowHandler.name);
+            expect(flowContext.flowInstanceId).to.be.not.undefined;
+            expect(flowContext.stepTrace).to.be.not.undefined;
             expect(response?.rating).to.be.equal(theory.expectedRating);
         });
     });

@@ -1,22 +1,20 @@
 import { ActivityRequest } from "./FlowRequest";
-
-export class FlowDefinition<TFlowReq extends ActivityRequest<TFlowRes>, TFlowRes, TState> {
-    initialiseState: (request: TFlowReq, state: TState) => void;
-    bindResponse: (response: TFlowRes, state: TState) => void;
-    steps: FlowStep[] = [];
-}
+import { FlowDefinition, ActivityFlowStep, DecisionFlowStep, LabelFlowStep, GotoFlowStep, EndFlowStep, CaseDecisionBranch, DecisionBranchTargetType, ElseDecisionBranch } from "./FlowDefinition";
 
 export class FlowBuilder<TFlowReq extends ActivityRequest<TFlowRes>, TFlowRes, TState> {
 
-    flowDefinition = new FlowDefinition<TFlowReq, TFlowRes, TState>();
+    private flowDefinition = new FlowDefinition<TFlowReq, TFlowRes, TState>();
+
+    // TODO 07Mar20: Can we force initialise() to be first?
 
     initialise(initialiseState: (request: TFlowReq, state: TState) => void) {
         this.flowDefinition.initialiseState = initialiseState;
         return this;
     }
 
-    finalise(ResponseType: new () => TFlowRes, bindResponse: (response: TFlowRes, state: TState) => void) {
+    finalise(ResponseType: new () => TFlowRes, bindResponse: (response: TFlowRes, state: TState) => void): FlowDefinition<TFlowReq, TFlowRes, TState> {
         this.flowDefinition.bindResponse = bindResponse;
+        return this.flowDefinition;
     }
 
     perform<TReq extends ActivityRequest<TRes>, TRes>(stepName: string, RequestType: new () => TReq, ResponseType: new () => TRes,
@@ -55,7 +53,6 @@ export class FlowBuilder<TFlowReq extends ActivityRequest<TFlowRes>, TFlowRes, T
     }
 
     end() {
-        // TODO 07Mar20: Should we have a name for ends?
         this.flowDefinition.steps.push(new EndFlowStep());
         return this;
     }
@@ -172,100 +169,4 @@ export class SwitchElseTargetBuilder<TFlowReq extends ActivityRequest<TFlowRes>,
 
         return this.builder;
     }
-}
-
-export enum FlowStepType {
-    Activity = "Activity",
-    Decision = "Decision",
-    Goto = "Goto",
-    Label = "Label",
-    End = "End"
-}
-
-export abstract class FlowStep {
-
-    constructor(type: FlowStepType, stepName?: string) {
-        this.type = type;
-        this.stepName = stepName;
-    }
-
-    readonly type: FlowStepType;
-    readonly stepName: string;
-}
-
-export class ActivityFlowStep<TReq extends ActivityRequest<TRes>, TRes, TState> extends FlowStep {
-
-    constructor(stepName: string, RequestType: new () => TReq, ResponseType: new () => TRes,
-        bindRequest: (request: TReq, state: TState) => void, bindState: (response: TRes, state: TState) => void) {
-
-        super(FlowStepType.Activity, stepName);
-
-        this.RequestType = RequestType;
-        this.ResponseType = ResponseType;
-        this.bindRequest = bindRequest;
-        this.bindState = bindState;
-    }
-
-    readonly RequestType: new () => TReq;
-    readonly ResponseType: new () => TRes;
-    readonly bindRequest: (request: TReq, state: TState) => void;
-    readonly bindState: (response: TRes, state: TState) => void;
-}
-
-export class DecisionFlowStep<TDecision, TState> extends FlowStep {
-
-    constructor(stepName: string, getValue: (state: TState) => TDecision) {
-
-        super(FlowStepType.Decision, stepName);
-
-        this.getValue = getValue;
-        this.caseBranches = [];
-        this.elseBranch = new ElseDecisionBranch();
-    }
-
-    readonly getValue: (state: TState) => TDecision;
-    readonly caseBranches: CaseDecisionBranch<TDecision>[];
-    readonly elseBranch: ElseDecisionBranch;
-}
-
-export class EndFlowStep extends FlowStep {
-    constructor() {
-        super(FlowStepType.End);
-    }
-}
-
-export class LabelFlowStep extends FlowStep {
-    constructor(stepName: string) {
-        super(FlowStepType.Label, stepName);
-    }
-}
-
-export class GotoFlowStep extends FlowStep {
-    constructor(targetStepName: string) {
-        super(FlowStepType.Goto);
-        this.targetStepName = targetStepName;
-    }
-    readonly targetStepName: string;
-}
-
-export class DecisionBranch {
-    target?: DecisionBranchTarget;
-}
-
-export class CaseDecisionBranch<TDecision> extends DecisionBranch {
-    readonly isTrue: (value: TDecision) => boolean;
-}
-
-export class ElseDecisionBranch extends DecisionBranch {
-}
-
-export enum DecisionBranchTargetType {
-    Goto = "Goto",
-    Continue = "Continue",
-    End = "End"
-}
-
-export class DecisionBranchTarget {
-    readonly type: DecisionBranchTargetType;
-    readonly stepName?: string;
 }
