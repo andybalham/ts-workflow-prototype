@@ -13,7 +13,7 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
     private readonly mediator: FlowMediator;
 
     constructor(ResponseType: new () => TRes, StateType: new () => TState, mediator: FlowMediator) {
-        
+
         this.ResponseType = ResponseType;
         this.StateType = StateType;
 
@@ -28,7 +28,7 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
 
         // TODO 08Mar20: Should we create a sub-context if there is a sub-flow?
         // TODO 08Mar20: If we persist the state, then we would need to store two different states for parent and child
-
+        // TODO 10Mar20: Do we need to push the name onto a stack and pop it off later?
         flowContext.flowName = this.flowName;
 
         const state = new this.StateType();
@@ -39,6 +39,11 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
 
         return response;
     }
+
+    debugPreStepState(_stepName: string, _state: any) { }
+    debugPreActivityRequest(_stepName: string, _request: any, _state: any) { }
+    debugPostActivityResponse(_stepName: string, _response: any, _state: any) { }
+    debugPostStepState(_stepName: string, _state: any) { }
 
     private performFlow(flowContext: FlowContext, flowDefinition: FlowDefinition<TReq, TRes, TState>, request: TReq, state: TState): TRes {
 
@@ -55,6 +60,8 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
             flowContext.addStep(step);
 
             // TODO 08Mar20: Should all logging be done via the FlowContext? I.e. assign an ILogger implementation
+
+            this.debugPreStepState(step.name, state);
 
             switch (step.type) {
 
@@ -82,6 +89,8 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
                 default:
                     throw new Error(`Unhandled FlowStepType: ${step.type}`);
             }
+
+            this.debugPostStepState(step.name, state);
         }
 
         const response = new this.ResponseType();
@@ -157,10 +166,14 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
         const stepRequest = new step.RequestType();
         step.bindRequest(stepRequest, state);
 
+        this.debugPreActivityRequest(step.name, stepRequest, state);
+
         // TODO 05Mar20: How could we pick up that we need to store the state and await the response? flowContext?
         const stepResponse = this.mediator.sendRequest(flowContext, step.RequestType, stepRequest);
 
         step.bindState(stepResponse, state);
+
+        this.debugPostActivityResponse(step.name, stepResponse, state);
 
         return stepIndex + 1;
     }
