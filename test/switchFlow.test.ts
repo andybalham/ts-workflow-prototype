@@ -1,26 +1,15 @@
-import { ActivityRequest, ActivityRequestHandler } from "../src/FlowRequest";
 import { FlowRequestHandler } from "../src/FlowRequestHandler";
 import { FlowBuilder } from "../src/FlowBuilder";
-import { Mediator } from "../src/Mediator";
+import { IActivityRequestHandler, FlowMediator } from "../src/FlowMediator";
 import { expect } from "chai";
 import { FlowContext } from "../src/FlowContext";
 
-class NullActivityRequest extends ActivityRequest<NullActivityResponse> {
-    constructor() {
-        super(NullActivityRequest, NullActivityResponse);
-    }
-}
+class NullActivityRequest { }
 
-class NullActivityResponse {
-}
+class NullActivityResponse { }
 
-class NullActivityHandler extends ActivityRequestHandler<NullActivityRequest, NullActivityResponse> {
-
-    constructor() {
-        super(NullActivityRequest);
-    }
-
-    handle(flowContext: FlowContext, request: NullActivityRequest): NullActivityResponse {
+class NullActivityHandler implements IActivityRequestHandler<NullActivityRequest, NullActivityResponse> {
+    handle(_flowContext: FlowContext, _request: NullActivityRequest): NullActivityResponse {
         return {};
     }
 }
@@ -31,10 +20,7 @@ enum Rating {
     Good = "Good",
 }
 
-class SwitchTestFlowRequest extends ActivityRequest<SwitchTestFlowResponse> {
-    constructor() {
-        super(SwitchTestFlowRequest, SwitchTestFlowResponse);
-    }
+class SwitchTestFlowRequest {
     value: number;
 }
 
@@ -51,8 +37,8 @@ class SwitchTestFlowHandler extends FlowRequestHandler<SwitchTestFlowRequest, Sw
 
     flowName = SwitchTestFlowHandler.name;
 
-    constructor(mediator: Mediator) {
-        super(SwitchTestFlowRequest, SwitchTestFlowResponse, SwitchTestFlowState, mediator);
+    constructor(mediator: FlowMediator) {
+        super(SwitchTestFlowResponse, SwitchTestFlowState, mediator);
     }
 
     buildFlow(flowDefinition: FlowBuilder<SwitchTestFlowRequest, SwitchTestFlowResponse, SwitchTestFlowState>) {
@@ -99,9 +85,9 @@ describe("Switch test", () => {
     theories.forEach(theory => {
         it(`returns the expected rating ${JSON.stringify(theory)}`, () => {
 
-            const mediator = new Mediator();
+            const mediator = new FlowMediator();
             mediator
-                .registerHandler(new NullActivityHandler());
+                .registerHandler(NullActivityRequest, NullActivityResponse, new NullActivityHandler());
 
             const request = new SwitchTestFlowRequest();
             request.value = theory.value;

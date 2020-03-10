@@ -1,22 +1,19 @@
 import { FlowBuilder } from "./FlowBuilder";
 import { FlowDefinition, FlowStepType, DecisionBranchTarget, DecisionBranch, DecisionBranchTargetType, FlowStep, GotoFlowStep } from "./FlowDefinition";
-import { ActivityRequest, ActivityRequestHandler } from "./FlowRequest";
-import { Mediator } from "./Mediator";
+import { IActivityRequestHandler, FlowMediator } from "./FlowMediator";
 import { FlowContext } from "./FlowContext";
 
-export abstract class FlowRequestHandler<TReq extends ActivityRequest<TRes>, TRes, TState> extends ActivityRequestHandler<TReq, TRes> {
+export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivityRequestHandler<TReq, TRes> {
 
     abstract flowName: string;
 
     private readonly ResponseType: new () => TRes;
     private readonly StateType: new () => TState;
     private readonly flowDefinition: FlowDefinition<TReq, TRes, TState>;
-    private readonly mediator: Mediator;
+    private readonly mediator: FlowMediator;
 
-    constructor(RequestType: new () => TReq, ResponseType: new () => TRes, StateType: new () => TState, mediator: Mediator) {
-
-        super(RequestType);
-
+    constructor(ResponseType: new () => TRes, StateType: new () => TState, mediator: FlowMediator) {
+        
         this.ResponseType = ResponseType;
         this.StateType = StateType;
 
@@ -36,8 +33,7 @@ export abstract class FlowRequestHandler<TReq extends ActivityRequest<TRes>, TRe
 
         const state = new this.StateType();
 
-        // TODO 08Mar20: Surround with try/catch and run a compensating flow if one exists
-        // TODO 08Mar20: try/catch will not be the way if we are doing it async
+        // TODO 10Mar20: Should we support the concept of a compensating flow on error?
 
         const response = this.performFlow(flowContext, this.flowDefinition, request, state);
 
@@ -162,7 +158,7 @@ export abstract class FlowRequestHandler<TReq extends ActivityRequest<TRes>, TRe
         step.bindRequest(stepRequest, state);
 
         // TODO 05Mar20: How could we pick up that we need to store the state and await the response? flowContext?
-        const stepResponse = this.mediator.sendRequest(flowContext, stepRequest);
+        const stepResponse = this.mediator.sendRequest(flowContext, step.RequestType, stepRequest);
 
         step.bindState(stepResponse, state);
 

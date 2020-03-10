@@ -1,6 +1,4 @@
-import { ActivityRequest } from "./FlowRequest";
-
-export class FlowDefinition<TFlowReq extends ActivityRequest<TFlowRes>, TFlowRes, TState> {
+export class FlowDefinition<TFlowReq, TFlowRes, TState> {
     initialiseState: (request: TFlowReq, state: TState) => void;
     bindResponse: (response: TFlowRes, state: TState) => void;
     steps: FlowStep[] = [];
@@ -25,7 +23,7 @@ export abstract class FlowStep {
     readonly name: string;
 }
 
-export class ActivityFlowStep<TReq extends ActivityRequest<TRes>, TRes, TState> extends FlowStep {
+export class ActivityFlowStep<TReq, TRes, TState> extends FlowStep {
 
     constructor(stepName: string, RequestType: new () => TReq, ResponseType: new () => TRes,
         bindRequest: (request: TReq, state: TState) => void, bindState: (response: TRes, state: TState) => void) {

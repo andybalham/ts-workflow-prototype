@@ -1,7 +1,6 @@
-import { ActivityRequest } from "./FlowRequest";
 import { FlowDefinition, ActivityFlowStep, DecisionFlowStep, LabelFlowStep, GotoFlowStep, EndFlowStep, CaseDecisionBranch, DecisionBranchTargetType, ElseDecisionBranch } from "./FlowDefinition";
 
-export class FlowBuilder<TFlowReq extends ActivityRequest<TFlowRes>, TFlowRes, TState> {
+export class FlowBuilder<TFlowReq, TFlowRes, TState> {
 
     private flowDefinition = new FlowDefinition<TFlowReq, TFlowRes, TState>();
 
@@ -17,7 +16,7 @@ export class FlowBuilder<TFlowReq extends ActivityRequest<TFlowRes>, TFlowRes, T
         return this.flowDefinition;
     }
 
-    perform<TReq extends ActivityRequest<TRes>, TRes>(stepName: string, RequestType: new () => TReq, ResponseType: new () => TRes,
+    perform<TReq, TRes>(stepName: string, RequestType: new () => TReq, ResponseType: new () => TRes,
         bindRequest: (request: TReq, state: TState) => void, bindState: (response: TRes, state: TState) => void) {
 
         const activityFlowStep = new ActivityFlowStep(stepName, RequestType, ResponseType, bindRequest, bindState);
@@ -58,7 +57,7 @@ export class FlowBuilder<TFlowReq extends ActivityRequest<TFlowRes>, TFlowRes, T
     }
 }
 
-export class SwitchCaseBuilder<TDecision, TFlowReq extends ActivityRequest<TFlowRes>, TFlowRes, TState> {
+export class SwitchCaseBuilder<TDecision, TFlowReq, TFlowRes, TState> {
 
     private branches: CaseDecisionBranch<TDecision>[] = [];
 
@@ -78,7 +77,7 @@ export class SwitchCaseBuilder<TDecision, TFlowReq extends ActivityRequest<TFlow
     }
 }
 
-export class SwitchElseBuilder<TDecision, TFlowReq extends ActivityRequest<TFlowRes>, TFlowRes, TState> {
+export class SwitchElseBuilder<TDecision, TFlowReq, TFlowRes, TState> {
 
     private builder: FlowBuilder<TFlowReq, TFlowRes, TState>;
     private step: DecisionFlowStep<TDecision, TState>;
@@ -93,7 +92,7 @@ export class SwitchElseBuilder<TDecision, TFlowReq extends ActivityRequest<TFlow
     }
 }
 
-export class SwitchCaseTargetBuilder<TDecision, TFlowReq extends ActivityRequest<TFlowRes>, TFlowRes, TState> {
+export class SwitchCaseTargetBuilder<TDecision, TFlowReq, TFlowRes, TState> {
 
     private builder: SwitchCaseBuilder<TDecision, TFlowReq, TFlowRes, TState>;
     private branch: CaseDecisionBranch<TDecision>;
@@ -132,7 +131,7 @@ export class SwitchCaseTargetBuilder<TDecision, TFlowReq extends ActivityRequest
     }
 }
 
-export class SwitchElseTargetBuilder<TFlowReq extends ActivityRequest<TFlowRes>, TFlowRes, TState> {
+export class SwitchElseTargetBuilder<TFlowReq, TFlowRes, TState> {
 
     private branch: ElseDecisionBranch;
     private builder: FlowBuilder<TFlowReq, TFlowRes, TState>;
