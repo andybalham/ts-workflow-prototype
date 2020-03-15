@@ -1,7 +1,8 @@
 import { FlowBuilder } from "./FlowBuilder";
 import { FlowDefinition, FlowStepType, DecisionBranchTarget, DecisionBranch, DecisionBranchTargetType, FlowStep, GotoFlowStep } from "./FlowDefinition";
-import { IActivityRequestHandler, FlowMediator } from "./FlowMediator";
-import { FlowContext } from "./FlowContext";
+import { IActivityRequestHandler, FlowHandlers } from "./FlowHandlers";
+import { FlowContext, ResumePoint } from "./FlowContext";
+import { IFlowInstanceRepository, FlowInstance } from "./FlowInstanceRepository";
 
 export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivityRequestHandler<TReq, TRes> {
 
@@ -10,54 +11,57 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
     private readonly ResponseType: new () => TRes;
     private readonly StateType: new () => TState;
     private readonly flowDefinition: FlowDefinition<TReq, TRes, TState>;
-    private readonly mediator: FlowMediator;
 
-    constructor(ResponseType: new () => TRes, StateType: new () => TState, mediator: FlowMediator) {
+    constructor(ResponseType: new () => TRes, StateType: new () => TState) {
 
         this.ResponseType = ResponseType;
         this.StateType = StateType;
 
         this.flowDefinition = this.buildFlow(new FlowBuilder<TReq, TRes, TState>());
-
-        this.mediator = mediator;
     }
 
     abstract buildFlow(flowBuilder: FlowBuilder<TReq, TRes, TState>): FlowDefinition<TReq, TRes, TState>;
 
-    handle(flowContext: FlowContext, request: TReq): TRes {
-
-        // TODO 08Mar20: Should we create a sub-context if there is a sub-flow?
-        // TODO 08Mar20: If we persist the state, then we would need to store two different states for parent and child
-        // TODO 10Mar20: Do we need to push the name onto a stack and pop it off later?
-        flowContext.flowName = this.flowName;
+    handle(parentFlowContext: FlowContext, request?: TReq): TRes {
 
         const state = new this.StateType();
 
         // TODO 10Mar20: Should we support the concept of a compensating flow on error?
 
+        const flowContext = FlowContext.newChildContext(parentFlowContext, this.flowName, state);
+
         const response = this.performFlow(flowContext, this.flowDefinition, request, state);
+
+        // TODO 14Mar20: Add the trace to the parent context
 
         return response;
     }
 
-    debugPreStepState(_stepName: string, _state: any) { }
-    debugPreActivityRequest(_stepName: string, _request: any, _state: any) { }
-    debugPostActivityResponse(_stepName: string, _response: any, _state: any) { }
-    debugPostStepState(_stepName: string, _state: any) { }
+    protected debugPreStepState(_stepName: string, _state: any) { }
+    protected debugPreActivityRequest(_stepName: string, _request: any, _state: any) { }
+    protected debugPostActivityResponse(_stepName: string, _response: any, _state: any) { }
+    protected debugPostStepState(_stepName: string, _state: any) { }
 
     private performFlow(flowContext: FlowContext, flowDefinition: FlowDefinition<TReq, TRes, TState>, request: TReq, state: TState): TRes {
 
-        flowDefinition.initialiseState(request, state);
+        let stepIndex: number;
+        let resumePoint: ResumePoint;
 
-        let stepIndex = 0;
+        if (flowContext.isResumption) {
+            resumePoint = flowContext.resumePoints.pop();
+            state = resumePoint.state;
+            stepIndex = this.getStepIndex(resumePoint.stepName, this.flowDefinition);
+        }
+        else {
+            flowDefinition.initialiseState(request, state);
+            stepIndex = 0;
+        }
 
-        // TODO 08Mar20: We could restart from here, once the response has been processed
-
-        while (stepIndex < flowDefinition.steps.length) {
+        while ((stepIndex !== undefined) && (stepIndex < flowDefinition.steps.length)) {
 
             const step = flowDefinition.steps[stepIndex];
 
-            flowContext.addStep(step);
+            flowContext.stepName = step.name;
 
             // TODO 08Mar20: Should all logging be done via the FlowContext? I.e. assign an ILogger implementation
 
@@ -66,8 +70,12 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
             switch (step.type) {
 
                 case FlowStepType.Activity:
-                    // TODO 08Mar20: How could we recognise that we need to store the state and the context?
-                    stepIndex = this.performActivity(flowContext, stepIndex, step, state);
+                    if (flowContext.isResumption && (flowContext.resumePoints.length === 0) && (resumePoint.stepName === step.name)) {
+                        stepIndex = this.resumeActivity(flowContext, stepIndex, step, state);                        
+                    }
+                    else {
+                        stepIndex = this.performActivity(flowContext, stepIndex, step, state);
+                    }
                     break;
 
                 case FlowStepType.Decision:
@@ -93,9 +101,12 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
             this.debugPostStepState(step.name, state);
         }
 
+        if (stepIndex === undefined) {
+            return undefined;
+        }
+
         const response = new this.ResponseType();
         flowDefinition.bindResponse(response, state);
-
         return response;
     }
 
@@ -155,9 +166,12 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
     }
 
     private getStepIndex(targetStepName: string, flowDefinition: FlowDefinition<TReq, TRes, TState>): number {
+
         // TODO 07Mar20: Can we have a quicker index lookup?
         const nextStepIndex = flowDefinition.steps.findIndex(step => step.name === targetStepName);
+
         if (nextStepIndex === -1) throw new Error(`No step could be found with the name: ${targetStepName}`);
+
         return nextStepIndex;
     }
 
@@ -168,8 +182,23 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
 
         this.debugPreActivityRequest(step.name, stepRequest, state);
 
-        // TODO 05Mar20: How could we pick up that we need to store the state and await the response? flowContext?
-        const stepResponse = this.mediator.sendRequest(flowContext, step.RequestType, stepRequest);
+        const stepResponse = flowContext.handlers.sendRequest(flowContext, step.RequestType, stepRequest);
+
+        if (stepResponse === undefined) {
+            flowContext.saveInstance();
+            return undefined;
+        }
+
+        step.bindState(stepResponse, state);
+
+        this.debugPostActivityResponse(step.name, stepResponse, state);
+
+        return stepIndex + 1;
+    }
+
+    private resumeActivity(flowContext: FlowContext, stepIndex: number, step: any, state: TState): number {
+
+        const stepResponse = flowContext.asyncResponse;
 
         step.bindState(stepResponse, state);
 

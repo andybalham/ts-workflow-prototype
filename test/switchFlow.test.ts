@@ -1,6 +1,6 @@
 import { FlowRequestHandler } from "../src/FlowRequestHandler";
 import { FlowBuilder } from "../src/FlowBuilder";
-import { IActivityRequestHandler, FlowMediator } from "../src/FlowMediator";
+import { IActivityRequestHandler, FlowHandlers } from "../src/FlowHandlers";
 import { expect } from "chai";
 import { FlowContext } from "../src/FlowContext";
 
@@ -37,8 +37,8 @@ class SwitchTestFlowHandler extends FlowRequestHandler<SwitchTestFlowRequest, Sw
 
     flowName = SwitchTestFlowHandler.name;
 
-    constructor(mediator: FlowMediator) {
-        super(SwitchTestFlowResponse, SwitchTestFlowState, mediator);
+    constructor() {
+        super(SwitchTestFlowResponse, SwitchTestFlowState);
     }
 
     buildFlow(flowDefinition: FlowBuilder<SwitchTestFlowRequest, SwitchTestFlowResponse, SwitchTestFlowState>) {
@@ -85,20 +85,16 @@ describe("Switch test", () => {
     theories.forEach(theory => {
         it(`returns the expected rating ${JSON.stringify(theory)}`, () => {
 
-            const mediator = new FlowMediator();
-            mediator
-                .registerHandler(NullActivityRequest, NullActivityResponse, new NullActivityHandler());
+            const flowContext = FlowContext.newContext();
+            flowContext.handlers
+                .register(NullActivityRequest, NullActivityResponse, new NullActivityHandler());
 
             const request = new SwitchTestFlowRequest();
             request.value = theory.value;
-
-            const flowContext = new FlowContext();
             
-            const response = new SwitchTestFlowHandler(mediator).handle(flowContext, request);
+            const response = new SwitchTestFlowHandler().handle(flowContext, request);
 
-            expect(flowContext.flowName).to.equal(SwitchTestFlowHandler.name);
-            expect(flowContext.flowInstanceId).to.be.not.undefined;
-            expect(flowContext.stepTrace).to.be.not.undefined;
+            expect(flowContext.instanceId).to.be.not.undefined;
             expect(response?.rating).to.be.equal(theory.expectedRating);
         });
     });

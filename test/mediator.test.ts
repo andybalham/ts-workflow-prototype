@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { IActivityRequestHandler, FlowMediator } from "../src/FlowMediator";
+import { IActivityRequestHandler, FlowHandlers } from "../src/FlowHandlers";
 import { FlowContext } from "../src/FlowContext";
 
 class ExampleActivityRequest {
@@ -16,18 +16,18 @@ class ExampleHandler implements IActivityRequestHandler<ExampleActivityRequest, 
     }
 }
 
-describe('Mediator', () => {
+describe('Handlers', () => {
 
-    it('Mediator can send request to handler', () => {
+    it('Handlers can send request to handler', () => {
 
-        const mediator = new FlowMediator();
-
-        mediator.registerHandler(ExampleActivityRequest, ExampleActivityResponse, new ExampleHandler());
+        const handlers = new FlowHandlers();
+        handlers.register(ExampleActivityRequest, ExampleActivityResponse, new ExampleHandler());
 
         const request = new ExampleActivityRequest();
         request.input = 616;
 
-        const response = mediator.sendRequest(new FlowContext(), ExampleActivityRequest, request) as ExampleActivityResponse;
+        const response =
+            handlers.sendRequest(FlowContext.newContext(), ExampleActivityRequest, request) as ExampleActivityResponse;
 
         expect(response).to.be.not.null;
         expect(response.output).to.be.equal(request.input);

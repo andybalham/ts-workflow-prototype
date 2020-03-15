@@ -4,12 +4,12 @@ export interface IActivityRequestHandler<TReq, TRes> {
     handle(flowContext: FlowContext, request: TReq): TRes;
 }
 
-export class FlowMediator {
+export class FlowHandlers {
 
     private handlerMap = new Map<string, any>();
 
-    public registerHandler<TReq, TRes, THan extends IActivityRequestHandler<TReq, TRes>>(
-        RequestType: new () => TReq, _ResponseType: new () => TRes, handler: THan) {
+    public register<TReq, TRes, THand extends IActivityRequestHandler<TReq, TRes>>(
+        RequestType: new () => TReq, _ResponseType: new () => TRes, handler: THand) {
 
         // TODO 10Mar20: Throw error if duplicate handler
 

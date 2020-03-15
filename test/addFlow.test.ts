@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { FlowRequestHandler } from "../src/FlowRequestHandler";
-import { IActivityRequestHandler, FlowMediator } from "../src/FlowMediator";
+import { IActivityRequestHandler, FlowHandlers } from "../src/FlowHandlers";
 import { FlowBuilder } from "../src/FlowBuilder";
 import { FlowContext } from "../src/FlowContext";
 
@@ -13,7 +13,7 @@ class SumActivityResponse {
 }
 
 class SumActivityHandler implements IActivityRequestHandler<SumActivityRequest, SumActivityResponse> {
-    public handle(flowContext: FlowContext, request: SumActivityRequest): SumActivityResponse {
+    public handle(_flowContext: FlowContext, request: SumActivityRequest): SumActivityResponse {
         const total = request.values.reduce((a, b) => a + b, 0);
         return { total: total };
     }
@@ -40,8 +40,8 @@ class SumFlowHandler extends FlowRequestHandler<SumFlowRequest, SumFlowResponse,
 
     flowName = SumFlowHandler.name;
 
-    constructor(mediator: FlowMediator) {
-        super(SumFlowResponse, SumFlowState, mediator);
+    constructor() {
+        super(SumFlowResponse, SumFlowState);
     }
 
     buildFlow(flowBuilder: FlowBuilder<SumFlowRequest, SumFlowResponse, SumFlowState>) {
@@ -69,25 +69,22 @@ class SumFlowHandler extends FlowRequestHandler<SumFlowRequest, SumFlowResponse,
     }
 }
 
-describe('Mediator', () => {
+describe('Handlers', () => {
 
     it('returns the total of the inputs', () => {
 
-        const mediator = new FlowMediator();
-        mediator
-            .registerHandler(SumActivityRequest, SumActivityResponse, new SumActivityHandler());
+        const flowContext = FlowContext.newContext();
+        flowContext.handlers
+            .register(SumActivityRequest, SumActivityResponse, new SumActivityHandler());
 
         const request = new SumFlowRequest();
         request.a = 200;
         request.b = 210;
         request.c = 206;
 
-        const flowContext = new FlowContext();
-        const response = new SumFlowHandler(mediator).handle(flowContext, request) as SumFlowResponse;
+        const response = new SumFlowHandler().handle(flowContext, request);
 
-        expect(flowContext.flowName).to.equal(SumFlowHandler.name);
-        expect(flowContext.flowInstanceId).to.be.not.undefined;
-        expect(flowContext.stepTrace).to.be.not.undefined;
+        expect(flowContext.instanceId).to.be.not.undefined;
         expect(response?.total).to.be.equal(616);
     });
 });
