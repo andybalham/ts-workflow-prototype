@@ -171,7 +171,7 @@ describe('Handlers', () => {
         const asyncResponse02 =
             new SyncSumActivityHandler().handle(FlowContext.newContext(), asyncSumActivityHandler.request);
 
-        flowContext = newResumeFlowContext(flowContext.rootInstanceId, asyncResponse01, flowInstanceRepository, asyncSumActivityHandler);
+        flowContext = newResumeFlowContext(flowContext.rootInstanceId, asyncResponse02, flowInstanceRepository, asyncSumActivityHandler);
 
         const response03 = new ParentFlowHandler().handle(flowContext);
 
@@ -192,7 +192,7 @@ function newAsyncFlowContext(flowInstanceRepository: InMemoryFlowInstanceReposit
 function newResumeFlowContext(instanceId: string, asyncResponse: any,
     flowInstanceRepository: InMemoryFlowInstanceRepository, asyncSumActivityHandler: AsyncSumActivityHandler) {
 
-    const flowContext = FlowContext.newResumeContext(instanceId, flowInstanceRepository, asyncResponse);
+    const flowContext = FlowContext.newResumeContext(instanceId, asyncResponse, flowInstanceRepository);
 
     addAsyncHandlers(flowContext, asyncSumActivityHandler);
 

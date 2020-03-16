@@ -24,13 +24,11 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
 
     handle(parentFlowContext: FlowContext, request?: TReq): TRes {
 
-        const state = new this.StateType();
-
         // TODO 10Mar20: Should we support the concept of a compensating flow on error?
 
-        const flowContext = FlowContext.newChildContext(parentFlowContext, this.flowName, state);
+        const flowContext = FlowContext.newChildContext(parentFlowContext, this.flowName, new this.StateType());
 
-        const response = this.performFlow(flowContext, this.flowDefinition, request, state);
+        const response = this.performFlow(flowContext, this.flowDefinition, request, flowContext.state);
 
         // TODO 14Mar20: Add the trace to the parent context
 
@@ -45,12 +43,9 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
     private performFlow(flowContext: FlowContext, flowDefinition: FlowDefinition<TReq, TRes, TState>, request: TReq, state: TState): TRes {
 
         let stepIndex: number;
-        let resumePoint: ResumePoint;
 
         if (flowContext.isResumption) {
-            resumePoint = flowContext.resumePoints.pop();
-            state = resumePoint.state;
-            stepIndex = this.getStepIndex(resumePoint.stepName, this.flowDefinition);
+            stepIndex = this.getStepIndex(flowContext.resumeStepName, this.flowDefinition);
         }
         else {
             flowDefinition.initialiseState(request, state);
@@ -70,8 +65,8 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
             switch (step.type) {
 
                 case FlowStepType.Activity:
-                    if (flowContext.isResumption && (flowContext.resumePoints.length === 0) && (resumePoint.stepName === step.name)) {
-                        stepIndex = this.resumeActivity(flowContext, stepIndex, step, state);                        
+                    if (flowContext.isResumption && (step.name === flowContext.resumeStepName) && (flowContext.resumePoints.length === 0)) {
+                        stepIndex = this.resumeActivity(flowContext, stepIndex, step, state);
                     }
                     else {
                         stepIndex = this.performActivity(flowContext, stepIndex, step, state);
@@ -201,6 +196,10 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
         const stepResponse = flowContext.asyncResponse;
 
         step.bindState(stepResponse, state);
+
+        // TODO 16Mar20: Mark the async response as being handled
+        // TODO 16Mar20: The problem is that this is not telling any parent contexts that it has been handled!!!
+        flowContext.asyncResponse = undefined;
 
         this.debugPostActivityResponse(step.name, stepResponse, state);
 

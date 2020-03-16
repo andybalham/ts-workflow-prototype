@@ -4,8 +4,8 @@ import { FlowHandlers } from "./FlowHandlers";
 import { IFlowInstanceRepository, FlowInstance } from "./FlowInstanceRepository";
 
 export class ResumePoint {
-    stepName: string;
-    state: any;
+    constructor(public stepName: string, public state: any) {
+    }
 }
 
 export class FlowContext {
@@ -14,82 +14,90 @@ export class FlowContext {
     // TODO 08Mar20: This could contain: logging methods, mocks and 'headers'
     // TODO 08Mar20: We wouldn't want mocks to be serialized
 
-    private readonly _contextStack: FlowContext[] = [];
-    private readonly _handlers: FlowHandlers;
-    private readonly _instanceRespository: IFlowInstanceRepository;
-    private readonly _state: any;
-
-    private readonly _flowInstance: FlowInstance;
-    private readonly _asyncResponse: any;
-
-    get rootInstanceId(): string {
-        return (this._contextStack.length > 0) ? this._contextStack[0].instanceId : this.instanceId;
-    }
-
-    get handlers(): FlowHandlers {
-        return (this._contextStack.length > 0) ? this._contextStack[0]._handlers : this._handlers;
-    }
-
-    private get instanceRespository(): IFlowInstanceRepository {
-        return (this._contextStack.length > 0) ? this._contextStack[0]._instanceRespository : this._instanceRespository;
-    }
-
-    get flowInstance(): FlowInstance {
-        return (this._contextStack.length > 0) ? this._contextStack[0]._flowInstance : this._flowInstance;
-    }
-
-    get asyncResponse(): FlowInstance {
-        return (this._contextStack.length > 0) ? this._contextStack[0]._asyncResponse : this._asyncResponse;
-    }
-
-    resumePoints: ResumePoint[];
-
-    get isResumption(): boolean {
-        return this.resumePoints !== undefined;
-    }
+    readonly rootInstanceId: string;
+    readonly instanceRespository: IFlowInstanceRepository;
+    readonly handlers: FlowHandlers;
 
     readonly instanceId: string;
     readonly flowName: string;
-    stepName: string;
 
-    private constructor(instanceId: string,
-        handlers?: FlowHandlers, instanceRespository?: IFlowInstanceRepository,
+    readonly resumePoints: ResumePoint[];
+    asyncResponse: any;
+    
+    resumeStepName: string;
+    stepName: string;
+    
+    readonly state: any;
+    private readonly _contextStack: FlowContext[];
+
+    get isResumption(): boolean {
+        return this.asyncResponse !== undefined;
+    }
+
+    private constructor(
+        instanceId: string, handlers?: FlowHandlers, instanceRespository?: IFlowInstanceRepository,
         parentContext?: FlowContext, flowName?: string, state?: any,
-        flowInstance?: FlowInstance, asyncResponse?: any) {
+        resumePoints?: ResumePoint[], asyncResponse?: any) {
+
+        if (parentContext !== undefined) {
+
+            // TODO 14Mar20: Allow for a set of 'flow headers' that are passed down the chain of contexts
+
+            this.rootInstanceId = parentContext.rootInstanceId;
+            this.handlers = parentContext.handlers;
+            this.instanceRespository = parentContext.instanceRespository;
+
+            this._contextStack = parentContext._contextStack;
+            this._contextStack.push(parentContext);
+
+            this.resumePoints = parentContext.resumePoints;
+            this.asyncResponse = parentContext.asyncResponse;
+        }
+        else {
+
+            this.rootInstanceId = instanceId;
+            this.handlers = handlers;
+            this.instanceRespository = instanceRespository;
+
+            this._contextStack = [];
+
+            this.resumePoints = resumePoints;
+            this.asyncResponse = asyncResponse;
+        }
 
         this.instanceId = instanceId;
         this.flowName = flowName;
-
-        this._state = state;
-        this._handlers = handlers;
-        this._instanceRespository = instanceRespository;
-
-        this._flowInstance = flowInstance;
-        this._asyncResponse = asyncResponse;
-
-        if (parentContext !== undefined) {
-            this._contextStack = parentContext._contextStack;
-            this._contextStack.push(parentContext);
-        }
+        this.state = state;
     }
 
     static newContext(instanceRespository?: IFlowInstanceRepository): FlowContext {
-        // TODO 14Mar20: Allow for a set of 'flow headers' that are passed down the chain of contexts
-        const instanceId = FlowContext.newId();
-        const context = new FlowContext(instanceId, new FlowHandlers(), instanceRespository);
+        const context = new FlowContext(FlowContext.newId(), new FlowHandlers(), instanceRespository);
         return context;
     }
 
     static newChildContext(parentContext: FlowContext, flowName: string, state: any): FlowContext {
 
-        const childContext =
-            new FlowContext(FlowContext.newId(), undefined, undefined, parentContext, flowName, state);
+        // TODO 15Mar20: If we are resuming, then we would want to remember the id from the first time
 
-        // TODO 14Mar20: Would we want to pass through details such as correlation ids?
-        return childContext;
+        if (parentContext.isResumption) {
+
+            const resumePoint = parentContext.resumePoints.pop();
+
+            const childContext =
+                new FlowContext(FlowContext.newId(), undefined, undefined, parentContext, flowName, resumePoint.state);
+
+            childContext.resumeStepName = resumePoint.stepName;
+
+            return childContext;
+        }
+        else {
+            const childContext =
+                new FlowContext(FlowContext.newId(), undefined, undefined, parentContext, flowName, state);
+            return childContext;
+        }
     }
 
-    static newResumeContext(instanceId: string, instanceRespository: IFlowInstanceRepository, asyncResponse: any): FlowContext {
+    static newResumeContext(instanceId: string, asyncResponse: any, instanceRespository: IFlowInstanceRepository): FlowContext {
 
         const flowInstance = instanceRespository.load(instanceId);
 
@@ -101,18 +109,26 @@ export class FlowContext {
             new FlowContext(
                 instanceId, new FlowHandlers(), instanceRespository,
                 undefined, undefined, undefined,
-                flowInstance, asyncResponse);
+                flowInstance.resumePoints, asyncResponse);
 
-        // TODO 15Mar20: How to set the ResumePoints?
-        
         return context
     }
 
     saveInstance() {
-        // TODO 14Mar20: Save the contexts and the state in readiness for the response later
         if (this._contextStack.length > 0) {
-            this.instanceRespository.save(new FlowInstance(this.rootInstanceId));
-            this._contextStack.splice(0, this._contextStack.length); // Clear 
+
+            const resumePoints: ResumePoint[] = [new ResumePoint(this.stepName, this.state)];
+
+            while (this._contextStack.length > 1) {
+                const context = this._contextStack.pop();
+                resumePoints.push(new ResumePoint(context.stepName, context.state));
+            }
+
+            const flowInstance = new FlowInstance(this.rootInstanceId, resumePoints);
+
+            this.instanceRespository.save(flowInstance);
+
+            this._contextStack.splice(0, this._contextStack.length); // Clear the stack
         }
     }
 

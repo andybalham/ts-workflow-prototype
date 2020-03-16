@@ -1,3 +1,4 @@
+import { ResumePoint } from "./FlowContext";
 
 export interface IFlowInstanceRepository {
     save(flowInstance: FlowInstance);
@@ -5,5 +6,5 @@ export interface IFlowInstanceRepository {
 }
 
 export class FlowInstance {
-    constructor(public id: string) { }
+    constructor(public id: string, public resumePoints: ResumePoint[]) { }
 }
