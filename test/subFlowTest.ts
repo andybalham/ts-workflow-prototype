@@ -76,13 +76,13 @@ class ChildFlowHandler extends FlowRequestHandler<ChildFlowRequest, ChildFlowRes
 }
 
 class ParentFlowRequest {
-    a: number; b: number; c: number;
+    a: number; b: number; c: number; d: number;
 }
 class ParentFlowResponse {
     total: number;
 }
 class ParentFlowState {
-    a: number; b: number; c: number;
+    a: number; b: number; c: number; d: number;
     total: number;
 }
 
@@ -100,13 +100,16 @@ class ParentFlowHandler extends FlowRequestHandler<ParentFlowRequest, ParentFlow
     buildFlow(flowBuilder: FlowBuilder<ParentFlowRequest, ParentFlowResponse, ParentFlowState>): FlowDefinition<ParentFlowRequest, ParentFlowResponse, ParentFlowState> {
         return flowBuilder
             .initialise((req, state) => {
-                state.a = req.a; state.b = req.b; state.c = req.c;
+                state.a = req.a; state.b = req.b; state.c = req.c; state.d = req.d;
             })
             .perform("Add a and b", ChildFlowRequest, ChildFlowResponse,
                 (req, state) => { req.value1 = state.a; req.value2 = state.b; },
                 (res, state) => { state.total = res.total; })
             .perform("Add c and total", ChildFlowRequest, ChildFlowResponse,
                 (req, state) => { req.value1 = state.c; req.value2 = state.total; },
+                (res, state) => { state.total = res.total; })
+            .perform("Add d and total", ChildFlowRequest, ChildFlowResponse,
+                (req, state) => { req.value1 = state.d; req.value2 = state.total; },
                 (res, state) => { state.total = res.total; })
             .finalise(ParentFlowResponse, (res, state) => {
                 res.total = state.total;
@@ -127,25 +130,28 @@ describe('Handlers', () => {
         request.a = 200;
         request.b = 210;
         request.c = 206;
+        request.d = 50;
 
         const response = new ParentFlowHandler().handle(flowContext, request);
 
         // TODO 10Mar20: How should FlowContext go between flows?
         expect(flowContext.rootInstanceId).to.be.not.undefined;
-        expect(response?.total).to.be.equal(616);
+        expect(response?.total).to.be.equal(666);
     });
 
-    it.only('returns the total of the inputs when activity invoked asynchronously', () => {
+    it('returns the total of the inputs when activity invoked asynchronously', () => {
 
         const flowInstanceRepository = new InMemoryFlowInstanceRepository();
         const asyncSumActivityHandler = new AsyncSumActivityHandler();
 
-        let flowContext = newAsyncFlowContext(flowInstanceRepository, asyncSumActivityHandler);
-
+        let flowContext = FlowContext.newContext(flowInstanceRepository);
+        addAsyncHandlers(flowContext, asyncSumActivityHandler);
+    
         const request = new ParentFlowRequest();
         request.a = 200;
         request.b = 210;
         request.c = 206;
+        request.d = 50;
 
         const response01 = new ParentFlowHandler().handle(flowContext, request);
 
@@ -158,8 +164,9 @@ describe('Handlers', () => {
         const asyncResponse01 =
             new SyncSumActivityHandler().handle(FlowContext.newContext(), asyncSumActivityHandler.request);
 
-        flowContext = newResumeFlowContext(flowContext.rootInstanceId, asyncResponse01, flowInstanceRepository, asyncSumActivityHandler);
-
+        flowContext = FlowContext.newResumeContext(flowContext.rootInstanceId, asyncResponse01, flowInstanceRepository);
+        addAsyncHandlers(flowContext, asyncSumActivityHandler);
+    
         const response02 = new ParentFlowHandler().handle(flowContext);
 
         expect(flowContext.rootInstanceId).to.not.be.undefined;
@@ -171,33 +178,29 @@ describe('Handlers', () => {
         const asyncResponse02 =
             new SyncSumActivityHandler().handle(FlowContext.newContext(), asyncSumActivityHandler.request);
 
-        flowContext = newResumeFlowContext(flowContext.rootInstanceId, asyncResponse02, flowInstanceRepository, asyncSumActivityHandler);
+        flowContext = FlowContext.newResumeContext(flowContext.rootInstanceId, asyncResponse02, flowInstanceRepository);
+        addAsyncHandlers(flowContext, asyncSumActivityHandler);
 
         const response03 = new ParentFlowHandler().handle(flowContext);
 
+        expect(flowContext.rootInstanceId).to.not.be.undefined;
+        expect(flowInstanceRepository.load(flowContext.rootInstanceId)).to.not.be.undefined;
+        expect(response03).to.be.undefined;
+
+        // Send back asynchronous response 03
+
+        const asyncResponse03 =
+            new SyncSumActivityHandler().handle(FlowContext.newContext(), asyncSumActivityHandler.request);
+
+        flowContext = FlowContext.newResumeContext(flowContext.rootInstanceId, asyncResponse03, flowInstanceRepository);
+        addAsyncHandlers(flowContext, asyncSumActivityHandler);
+
+        const response04 = new ParentFlowHandler().handle(flowContext);
+
         expect(flowContext.rootInstanceId).to.be.not.undefined;
-        expect(response03.total).to.be.equal(616);
+        expect(response04.total).to.be.equal(666);
     });
 });
-
-function newAsyncFlowContext(flowInstanceRepository: InMemoryFlowInstanceRepository, asyncSumActivityHandler: AsyncSumActivityHandler) {
-
-    const flowContext = FlowContext.newContext(flowInstanceRepository);
-
-    addAsyncHandlers(flowContext, asyncSumActivityHandler);
-
-    return flowContext;
-}
-
-function newResumeFlowContext(instanceId: string, asyncResponse: any,
-    flowInstanceRepository: InMemoryFlowInstanceRepository, asyncSumActivityHandler: AsyncSumActivityHandler) {
-
-    const flowContext = FlowContext.newResumeContext(instanceId, asyncResponse, flowInstanceRepository);
-    
-    addAsyncHandlers(flowContext, asyncSumActivityHandler);
-
-    return flowContext;
-}
 
 function addAsyncHandlers(flowContext: FlowContext, asyncSumActivityHandler: AsyncSumActivityHandler) {
     flowContext.handlers
