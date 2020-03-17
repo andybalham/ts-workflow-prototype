@@ -65,7 +65,7 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
             switch (step.type) {
 
                 case FlowStepType.Activity:
-                    if (flowContext.isResumption && (step.name === flowContext.resumeStepName) && (flowContext.resumePoints.length === 0)) {
+                    if (flowContext.isResumption && (flowContext.resumePoints.length === 0) && (step.name === flowContext.resumeStepName)) {
                         stepIndex = this.resumeActivity(flowContext, stepIndex, step, state);
                     }
                     else {
@@ -197,11 +197,10 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
 
         step.bindState(stepResponse, state);
 
-        // TODO 16Mar20: Mark the async response as being handled
-        // TODO 16Mar20: The problem is that this is not telling any parent contexts that it has been handled!!!
-        flowContext.asyncResponse = undefined;
-
         this.debugPostActivityResponse(step.name, stepResponse, state);
+
+        // TODO 16Mar20: Mark the async response as being handled
+        flowContext.isResumption = false;
 
         return stepIndex + 1;
     }

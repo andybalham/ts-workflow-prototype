@@ -23,15 +23,21 @@ export class FlowContext {
 
     readonly resumePoints: ResumePoint[];
     asyncResponse: any;
-    
+
     resumeStepName: string;
     stepName: string;
-    
+
     readonly state: any;
     private readonly _contextStack: FlowContext[];
 
+    private readonly _isResumption: boolean[] = [false];
+
     get isResumption(): boolean {
-        return this.asyncResponse !== undefined;
+        return this._isResumption[0];
+    }
+
+    set isResumption(value: boolean) {
+        this._isResumption[0] = value;
     }
 
     private constructor(
@@ -47,11 +53,12 @@ export class FlowContext {
             this.handlers = parentContext.handlers;
             this.instanceRespository = parentContext.instanceRespository;
 
-            this._contextStack = parentContext._contextStack;
+            this._contextStack = parentContext._contextStack.slice();
             this._contextStack.push(parentContext);
 
             this.resumePoints = parentContext.resumePoints;
             this.asyncResponse = parentContext.asyncResponse;
+            this._isResumption = parentContext._isResumption;
         }
         else {
 
@@ -63,6 +70,7 @@ export class FlowContext {
 
             this.resumePoints = resumePoints;
             this.asyncResponse = asyncResponse;
+            this.isResumption = (asyncResponse !== undefined);
         }
 
         this.instanceId = instanceId;

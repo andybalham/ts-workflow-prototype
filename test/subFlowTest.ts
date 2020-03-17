@@ -193,7 +193,7 @@ function newResumeFlowContext(instanceId: string, asyncResponse: any,
     flowInstanceRepository: InMemoryFlowInstanceRepository, asyncSumActivityHandler: AsyncSumActivityHandler) {
 
     const flowContext = FlowContext.newResumeContext(instanceId, asyncResponse, flowInstanceRepository);
-
+    
     addAsyncHandlers(flowContext, asyncSumActivityHandler);
 
     return flowContext;
