@@ -22,9 +22,9 @@ class SyncSumActivityHandler implements IActivityRequestHandler<SumActivityReque
 }
 
 class AsyncSumActivityHandler implements IActivityRequestHandler<SumActivityRequest, SumActivityResponse> {
-    request: SumActivityRequest;
+    requestJson: string;
     public handle(_flowContext: FlowContext, request: SumActivityRequest): SumActivityResponse {
-        this.request = request;
+        this.requestJson = JSON.stringify(request);
         return undefined;
     }
 }
@@ -42,14 +42,14 @@ class ChildFlowState {
 
 class InMemoryFlowInstanceRepository implements IFlowInstanceRepository {
 
-    private readonly _flowInstances: Map<string, FlowInstance> = new Map<string, FlowInstance>();
+    private readonly _flowInstances: Map<string, string> = new Map<string, string>();
 
     save(flowInstance: FlowInstance) {
-        this._flowInstances[flowInstance.id] = flowInstance;
+        this._flowInstances[flowInstance.id] = JSON.stringify(flowInstance);
     }
 
     load(instanceId: string): FlowInstance {
-        return this._flowInstances[instanceId];
+        return JSON.parse(this._flowInstances[instanceId]);
     }
 }
 
@@ -139,7 +139,7 @@ describe('Handlers', () => {
         expect(response?.total).to.be.equal(666);
     });
 
-    it('returns the total of the inputs when activity invoked asynchronously', () => {
+    it.only('returns the total of the inputs when activity invoked asynchronously', () => {
 
         const flowInstanceRepository = new InMemoryFlowInstanceRepository();
         const asyncSumActivityHandler = new AsyncSumActivityHandler();
@@ -156,13 +156,16 @@ describe('Handlers', () => {
         const response01 = new ParentFlowHandler().handle(flowContext, request);
 
         expect(flowContext.rootInstanceId).to.not.be.undefined;
+        expect(flowContext.instanceId).equal(flowContext.rootInstanceId);
         expect(flowInstanceRepository.load(flowContext.rootInstanceId)).to.not.be.undefined;
         expect(response01).to.be.undefined;
 
         // Send back asynchronous response 01
 
+        const asyncRequestJson01 = asyncSumActivityHandler.requestJson;
+        
         const asyncResponse01 =
-            new SyncSumActivityHandler().handle(FlowContext.newContext(), asyncSumActivityHandler.request);
+            new SyncSumActivityHandler().handle(FlowContext.newContext(), JSON.parse(asyncRequestJson01));
 
         flowContext = FlowContext.newResumeContext(flowContext.rootInstanceId, asyncResponse01, flowInstanceRepository);
         addAsyncHandlers(flowContext, asyncSumActivityHandler);
@@ -170,13 +173,18 @@ describe('Handlers', () => {
         const response02 = new ParentFlowHandler().handle(flowContext);
 
         expect(flowContext.rootInstanceId).to.not.be.undefined;
+        expect(flowContext.instanceId).equal(flowContext.rootInstanceId);
         expect(flowInstanceRepository.load(flowContext.rootInstanceId)).to.not.be.undefined;
         expect(response02).to.be.undefined;
 
+        const firstInstanceId = flowContext.instanceId;
+
         // Send back asynchronous response 02
 
+        const asyncRequestJson02 = asyncSumActivityHandler.requestJson;
+        
         const asyncResponse02 =
-            new SyncSumActivityHandler().handle(FlowContext.newContext(), asyncSumActivityHandler.request);
+            new SyncSumActivityHandler().handle(FlowContext.newContext(), JSON.parse(asyncRequestJson02));
 
         flowContext = FlowContext.newResumeContext(flowContext.rootInstanceId, asyncResponse02, flowInstanceRepository);
         addAsyncHandlers(flowContext, asyncSumActivityHandler);
@@ -184,13 +192,17 @@ describe('Handlers', () => {
         const response03 = new ParentFlowHandler().handle(flowContext);
 
         expect(flowContext.rootInstanceId).to.not.be.undefined;
+        expect(flowContext.instanceId).equal(firstInstanceId);
+        expect(flowContext.instanceId).equal(flowContext.rootInstanceId);
         expect(flowInstanceRepository.load(flowContext.rootInstanceId)).to.not.be.undefined;
         expect(response03).to.be.undefined;
 
         // Send back asynchronous response 03
 
+        const asyncRequestJson03 = asyncSumActivityHandler.requestJson;
+        
         const asyncResponse03 =
-            new SyncSumActivityHandler().handle(FlowContext.newContext(), asyncSumActivityHandler.request);
+            new SyncSumActivityHandler().handle(FlowContext.newContext(), JSON.parse(asyncRequestJson03));
 
         flowContext = FlowContext.newResumeContext(flowContext.rootInstanceId, asyncResponse03, flowInstanceRepository);
         addAsyncHandlers(flowContext, asyncSumActivityHandler);
@@ -198,6 +210,8 @@ describe('Handlers', () => {
         const response04 = new ParentFlowHandler().handle(flowContext);
 
         expect(flowContext.rootInstanceId).to.be.not.undefined;
+        expect(flowContext.instanceId).equal(firstInstanceId);
+        expect(flowContext.instanceId).equal(flowContext.rootInstanceId);
         expect(response04.total).to.be.equal(666);
     });
 });

@@ -44,7 +44,7 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
 
         let stepIndex: number;
 
-        if (flowContext.isResumption) {
+        if (flowContext.isResume) {
             stepIndex = this.getStepIndex(flowContext.resumeStepName, this.flowDefinition);
         }
         else {
@@ -65,7 +65,7 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
             switch (step.type) {
 
                 case FlowStepType.Activity:
-                    if (flowContext.isResumption && (flowContext.resumePoints.length === 0) && (step.name === flowContext.resumeStepName)) {
+                    if (flowContext.isResume && (flowContext.resumePoints.length === 0) && (step.name === flowContext.resumeStepName)) {
                         stepIndex = this.resumeActivity(flowContext, stepIndex, step, state);
                     }
                     else {
@@ -200,7 +200,7 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
         this.debugPostActivityResponse(step.name, stepResponse, state);
 
         // TODO 16Mar20: Mark the async response as being handled
-        flowContext.isResumption = false;
+        flowContext.isResume = false;
 
         return stepIndex + 1;
     }
