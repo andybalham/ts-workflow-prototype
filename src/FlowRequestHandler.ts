@@ -1,7 +1,7 @@
 import { FlowBuilder } from "./FlowBuilder";
 import { FlowDefinition, FlowStepType, DecisionBranchTarget, DecisionBranch, DecisionBranchTargetType, FlowStep, GotoFlowStep } from "./FlowDefinition";
 import { IActivityRequestHandler, FlowHandlers } from "./FlowHandlers";
-import { FlowContext, ResumePoint } from "./FlowContext";
+import { FlowContext, FlowInstanceStackFrame } from "./FlowContext";
 import { IFlowInstanceRepository, FlowInstance } from "./FlowInstanceRepository";
 
 export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivityRequestHandler<TReq, TRes> {
@@ -22,15 +22,17 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
 
     abstract buildFlow(flowBuilder: FlowBuilder<TReq, TRes, TState>): FlowDefinition<TReq, TRes, TState>;
 
-    handle(parentFlowContext: FlowContext, request?: TReq): TRes {
+    handle(flowContext: FlowContext, request?: TReq): TRes {
 
-        // TODO 10Mar20: Should we support the concept of a compensating flow on error?
+        flowContext.stackFrames.push(new FlowInstanceStackFrame(this.flowName, new this.StateType()));
 
-        const flowContext = FlowContext.newChildContext(parentFlowContext, this.flowName, new this.StateType());
+        const response = this.performFlow(flowContext, this.flowDefinition, request);
 
-        const response = this.performFlow(flowContext, this.flowDefinition, request, flowContext.state);
+        // TODO 01Apr20: How can we tell if we are the the last FlowRequestHandler? If we are, then we must save
 
-        // TODO 14Mar20: Add the trace to the parent context
+        if (response !== undefined) {
+            flowContext.stackFrames.pop();            
+        }
 
         return response;
     }
@@ -40,15 +42,14 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
     protected debugPostActivityResponse(_stepName: string, _response: any, _state: any) { }
     protected debugPostStepState(_stepName: string, _state: any) { }
 
-    private performFlow(flowContext: FlowContext, flowDefinition: FlowDefinition<TReq, TRes, TState>, request: TReq, state: TState): TRes {
+    private performFlow(flowContext: FlowContext, flowDefinition: FlowDefinition<TReq, TRes, TState>, request: TReq): TRes {
 
         let stepIndex: number;
 
         if (flowContext.isResume) {
             stepIndex = this.getStepIndex(flowContext.resumeStepName, this.flowDefinition);
-        }
-        else {
-            flowDefinition.initialiseState(request, state);
+        } else {
+            flowDefinition.initialiseState(request, flowContext.currentStackFrame.state);
             stepIndex = 0;
         }
 
@@ -56,25 +57,25 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
 
             const step = flowDefinition.steps[stepIndex];
 
-            flowContext.stepName = step.name;
+            flowContext.currentStackFrame.stepName = step.name;
 
             // TODO 08Mar20: Should all logging be done via the FlowContext? I.e. assign an ILogger implementation
 
-            this.debugPreStepState(step.name, state);
+            this.debugPreStepState(step.name, flowContext.currentStackFrame.state);
 
             switch (step.type) {
 
                 case FlowStepType.Activity:
                     if (flowContext.isResume && (flowContext.resumePoints.length === 0) && (step.name === flowContext.resumeStepName)) {
-                        stepIndex = this.resumeActivity(flowContext, stepIndex, step, state);
+                        stepIndex = this.resumeActivity(flowContext, stepIndex, step);
                     }
                     else {
-                        stepIndex = this.performActivity(flowContext, stepIndex, step, state);
+                        stepIndex = this.performActivity(flowContext, stepIndex, step);
                     }
                     break;
 
                 case FlowStepType.Decision:
-                    stepIndex = this.evaluateDecision(stepIndex, step, state, flowDefinition);
+                    stepIndex = this.evaluateDecision(stepIndex, step, flowContext.currentStackFrame.state, flowDefinition);
                     break;
 
                 case FlowStepType.End:
@@ -93,7 +94,7 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
                     throw new Error(`Unhandled FlowStepType: ${step.type}`);
             }
 
-            this.debugPostStepState(step.name, state);
+            this.debugPostStepState(step.name, flowContext.currentStackFrame.state);
         }
 
         if (stepIndex === undefined) {
@@ -101,7 +102,7 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
         }
 
         const response = new this.ResponseType();
-        flowDefinition.bindResponse(response, state);
+        flowDefinition.bindResponse(response, flowContext.currentStackFrame.state);
         return response;
     }
 
@@ -170,12 +171,12 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
         return nextStepIndex;
     }
 
-    private performActivity(flowContext: FlowContext, stepIndex: number, step: any, state: TState): number {
+    private performActivity(flowContext: FlowContext, stepIndex: number, step: any): number {
 
         const stepRequest = new step.RequestType();
-        step.bindRequest(stepRequest, state);
+        step.bindRequest(stepRequest, flowContext.currentStackFrame.state);
 
-        this.debugPreActivityRequest(step.name, stepRequest, state);
+        this.debugPreActivityRequest(step.name, stepRequest, flowContext.currentStackFrame.state);
 
         const stepResponse = flowContext.handlers.sendRequest(flowContext, step.RequestType, stepRequest);
 
@@ -184,20 +185,20 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
             return undefined;
         }
 
-        step.bindState(stepResponse, state);
+        step.bindState(stepResponse, flowContext.currentStackFrame.state);
 
-        this.debugPostActivityResponse(step.name, stepResponse, state);
+        this.debugPostActivityResponse(step.name, stepResponse, flowContext.currentStackFrame.state);
 
         return stepIndex + 1;
     }
 
-    private resumeActivity(flowContext: FlowContext, stepIndex: number, step: any, state: TState): number {
+    private resumeActivity(flowContext: FlowContext, stepIndex: number, step: any): number {
 
         const stepResponse = flowContext.asyncResponse;
 
-        step.bindState(stepResponse, state);
+        step.bindState(stepResponse, flowContext.currentStackFrame.state);
 
-        this.debugPostActivityResponse(step.name, stepResponse, state);
+        this.debugPostActivityResponse(step.name, stepResponse, flowContext.currentStackFrame.state);
 
         // TODO 16Mar20: Mark the async response as being handled
         flowContext.isResume = false;
