@@ -8,12 +8,13 @@ export class FlowContext {
     readonly handlers: FlowHandlers; // TODO 02Apr20: Should we link to a IoC-style container?
     readonly instanceRespository: IFlowInstanceRepository;
     readonly stackFrames: FlowInstanceStackFrame[];
+    asyncRequestId: string;
 
     readonly resumeStackFrames: FlowInstanceStackFrame[];
     readonly resumeStackFrameCount: number;
     asyncResponse: any;
 
-    constructor(instanceRespository?: IFlowInstanceRepository, instanceId?: string, asyncResponse?: any) {
+    constructor(instanceRespository?: IFlowInstanceRepository, instanceId?: string, stackFrames?: FlowInstanceStackFrame[], asyncResponse?: any) {
 
         this.handlers = new FlowHandlers();
         this.instanceRespository = instanceRespository;
@@ -24,7 +25,7 @@ export class FlowContext {
         } else {
             this.instanceId = instanceId;
             this.asyncResponse = asyncResponse;
-            this.resumeStackFrames = instanceRespository.load(instanceId).reverse();
+            this.resumeStackFrames = stackFrames.reverse();
             this.resumeStackFrameCount = this.resumeStackFrames.length;
         }
     }
