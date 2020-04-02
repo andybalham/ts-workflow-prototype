@@ -71,7 +71,7 @@ class SumFlowHandler extends FlowRequestHandler<SumFlowRequest, SumFlowResponse,
 
 describe('Handlers', () => {
 
-    it.only('returns the total of the inputs', () => {
+    it('returns the total of the inputs', () => {
 
         const flowContext = new FlowContext();
         flowContext.handlers

@@ -27,7 +27,7 @@ describe('Handlers', () => {
         request.input = 616;
 
         const response =
-            handlers.sendRequest(FlowContext.newContext(), ExampleActivityRequest, request) as ExampleActivityResponse;
+            handlers.sendRequest(new FlowContext(), ExampleActivityRequest, request) as ExampleActivityResponse;
 
         expect(response).to.be.not.null;
         expect(response.output).to.be.equal(request.input);

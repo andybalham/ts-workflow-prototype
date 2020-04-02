@@ -2,7 +2,7 @@ import { FlowBuilder } from "./FlowBuilder";
 import { FlowDefinition, FlowStepType, DecisionBranchTarget, DecisionBranch, DecisionBranchTargetType, FlowStep, GotoFlowStep } from "./FlowDefinition";
 import { IActivityRequestHandler, FlowHandlers } from "./FlowHandlers";
 import { FlowContext, FlowInstanceStackFrame } from "./FlowContext";
-import { IFlowInstanceRepository, FlowInstance } from "./FlowInstanceRepository";
+import uuid = require("uuid");
 
 export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivityRequestHandler<TReq, TRes> {
 
@@ -24,14 +24,22 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
 
     handle(flowContext: FlowContext, request?: TReq): TRes {
 
-        flowContext.stackFrames.push(new FlowInstanceStackFrame(this.flowName, new this.StateType()));
+        let isRoot;
+
+        if (flowContext.isResume) {
+            isRoot = (flowContext.resumeStackFrames.length === flowContext.resumeStackFrameCount);
+            flowContext.stackFrames.push(flowContext.resumeStackFrames.pop());
+        } else {
+            isRoot = (flowContext.stackFrames.length === 0);
+            flowContext.stackFrames.push(new FlowInstanceStackFrame(this.flowName, new this.StateType()));
+        }
 
         const response = this.performFlow(flowContext, this.flowDefinition, request);
 
-        // TODO 01Apr20: How can we tell if we are the the last FlowRequestHandler? If we are, then we must save
-
         if (response !== undefined) {
             flowContext.stackFrames.pop();            
+        } else if (isRoot) {
+            flowContext.saveInstance();
         }
 
         return response;
@@ -47,8 +55,8 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
         let stepIndex: number;
 
         if (flowContext.isResume) {
-            stepIndex = this.getStepIndex(flowContext.resumeStepName, this.flowDefinition);
-        } else {
+            stepIndex = this.getStepIndex(flowContext.currentStackFrame.stepName, this.flowDefinition);
+        } else {            
             flowDefinition.initialiseState(request, flowContext.currentStackFrame.state);
             stepIndex = 0;
         }
@@ -66,7 +74,7 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
             switch (step.type) {
 
                 case FlowStepType.Activity:
-                    if (flowContext.isResume && (flowContext.resumePoints.length === 0) && (step.name === flowContext.resumeStepName)) {
+                    if (flowContext.isResume && (flowContext.resumeStackFrames.length === 0) && (step.name === flowContext.currentStackFrame.stepName)) {
                         stepIndex = this.resumeActivity(flowContext, stepIndex, step);
                     }
                     else {
@@ -200,8 +208,7 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
 
         this.debugPostActivityResponse(step.name, stepResponse, flowContext.currentStackFrame.state);
 
-        // TODO 16Mar20: Mark the async response as being handled
-        flowContext.isResume = false;
+        delete flowContext.asyncResponse;
 
         return stepIndex + 1;
     }

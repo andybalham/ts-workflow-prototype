@@ -1,9 +1,7 @@
-export interface IFlowInstanceRepository {
-    save(flowInstance: FlowInstance);
-    load(instanceId: string): FlowInstance;
-}
+import { FlowInstanceStackFrame } from "./FlowContext";
 
-export class FlowInstance {
-    // constructor(public id: string, public resumePoints: ResumePoint[]) { }
-    constructor(public id: string) { }
+export interface IFlowInstanceRepository {
+    // TODO 02Apr20: We would want to save the requestId as well
+    save(instanceId: string, stackFrames: FlowInstanceStackFrame[]);
+    load(instanceId: string): FlowInstanceStackFrame[];
 }

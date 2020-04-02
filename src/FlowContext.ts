@@ -1,34 +1,45 @@
 import uuid = require("uuid");
 import { FlowHandlers } from "./FlowHandlers";
-import { IFlowInstanceRepository, FlowInstance } from "./FlowInstanceRepository";
+import { IFlowInstanceRepository } from "./FlowInstanceRepository";
 
 export class FlowContext {
 
     readonly instanceId: string;
-    readonly handlers: FlowHandlers;
+    readonly handlers: FlowHandlers; // TODO 02Apr20: Should we link to a IoC-style container?
     readonly instanceRespository: IFlowInstanceRepository;
     readonly stackFrames: FlowInstanceStackFrame[];
-    
-    isResume: any;
-    resumeStepName: string;
-    resumePoints: any;
+
+    readonly resumeStackFrames: FlowInstanceStackFrame[];
+    readonly resumeStackFrameCount: number;
     asyncResponse: any;
 
-    constructor(instanceRespository?: IFlowInstanceRepository) {
+    constructor(instanceRespository?: IFlowInstanceRepository, instanceId?: string, asyncResponse?: any) {
 
-        this.instanceId = uuid.v4();
         this.handlers = new FlowHandlers();
-        this.instanceRespository = instanceRespository;        
+        this.instanceRespository = instanceRespository;
         this.stackFrames = [];
+
+        if (instanceId === undefined) {
+            this.instanceId = uuid.v4();
+        } else {
+            this.instanceId = instanceId;
+            this.asyncResponse = asyncResponse;
+            this.resumeStackFrames = instanceRespository.load(instanceId).reverse();
+            this.resumeStackFrameCount = this.resumeStackFrames.length;
+        }
     }
 
     get currentStackFrame(): FlowInstanceStackFrame {
         return this.stackFrames[this.stackFrames.length - 1];
     }
 
-    saveInstance() {
-        throw new Error("Method not implemented.");
+    get isResume(): boolean {
+        return this.asyncResponse !== undefined;
     }
+
+    saveInstance() {
+        this.instanceRespository.save(this.instanceId, this.stackFrames);
+    }    
 }
 
 export class FlowInstanceStackFrame {
