@@ -92,10 +92,12 @@ export class ElseDecisionBranch extends DecisionBranch {
 export enum DecisionBranchTargetType {
     Goto = "Goto",
     Continue = "Continue",
-    End = "End"
+    End = "End",
+    Error = "Error",
 }
 
 export class DecisionBranchTarget {
     readonly type: DecisionBranchTargetType;
     readonly stepName?: string;
+    readonly getErrorMessage?: (decisionValue: any) => string;
 }

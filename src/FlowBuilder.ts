@@ -17,7 +17,9 @@ export class FlowBuilder<TFlowReq, TFlowRes, TState> {
     }
 
     perform<TReq, TRes>(stepName: string, RequestType: new () => TReq, ResponseType: new () => TRes,
-        bindRequest: (request: TReq, state: TState) => void, bindState: (response: TRes, state: TState) => void) {
+        bindRequest: (request: TReq, state: TState) => void, bindState?: (response: TRes, state: TState) => void) {
+
+        bindState = (bindState === undefined) ? (_res, _state) => { } : bindState;
 
         const activityFlowStep = new ActivityFlowStep(stepName, RequestType, ResponseType, bindRequest, bindState);
 
@@ -164,6 +166,16 @@ export class SwitchElseTargetBuilder<TFlowReq, TFlowRes, TState> {
 
         this.branch.target = {
             type: DecisionBranchTargetType.End
+        };
+
+        return this.builder;
+    }
+
+    error(getErrorMessage?: (decisionValue: any) => string): FlowBuilder<TFlowReq, TFlowRes, TState> {
+
+        this.branch.target = {            
+            type: DecisionBranchTargetType.Error,
+            getErrorMessage: getErrorMessage
         };
 
         return this.builder;

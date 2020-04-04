@@ -37,7 +37,7 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
         const response = this.performFlow(flowContext, this.flowDefinition, request);
 
         if (response !== undefined) {
-            flowContext.stackFrames.pop();            
+            flowContext.stackFrames.pop();
         } else if (isRoot) {
             flowContext.saveInstance();
         }
@@ -56,7 +56,7 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
 
         if (flowContext.isResume) {
             stepIndex = this.getStepIndex(flowContext.currentStackFrame.stepName, this.flowDefinition);
-        } else {            
+        } else {
             flowDefinition.initialiseState(request, flowContext.currentStackFrame.state);
             stepIndex = 0;
         }
@@ -143,12 +143,12 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
 
         const decisionBranch: DecisionBranch = (trueBranch === undefined) ? step.elseBranch : trueBranch;
 
-        const nextStepIndex = this.getNextStepIndex(decisionBranch.target, stepIndex, flowDefinition);
+        const nextStepIndex = this.getNextStepIndex(decisionBranch.target, stepIndex, flowDefinition, decisionValue);
 
         return nextStepIndex;
     }
 
-    private getNextStepIndex(target: DecisionBranchTarget, currentStepIndex: number, flowDefinition: FlowDefinition<TReq, TRes, TState>): number {
+    private getNextStepIndex(target: DecisionBranchTarget, currentStepIndex: number, flowDefinition: FlowDefinition<TReq, TRes, TState>, decisionValue: any): number {
 
         let nextStepIndex: number;
 
@@ -157,13 +157,16 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
                 nextStepIndex = currentStepIndex + 1;
                 break;
 
+            case DecisionBranchTargetType.Goto:
+                nextStepIndex = this.getStepIndex(target.stepName, flowDefinition);
+                break;
+
             case DecisionBranchTargetType.End:
                 nextStepIndex = Number.MAX_SAFE_INTEGER;
                 break;
 
             default:
-                nextStepIndex = this.getStepIndex(target.stepName, flowDefinition);
-                break;
+                throw new Error(target.getErrorMessage(decisionValue));
         }
 
         return nextStepIndex;
