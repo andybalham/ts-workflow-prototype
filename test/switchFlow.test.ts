@@ -33,7 +33,7 @@ class SwitchTestFlowState {
     rating: Rating;
 }
 
-class SwitchTestFlowHandler extends FlowRequestHandler<SwitchTestFlowRequest, SwitchTestFlowResponse, SwitchTestFlowState> {
+export class SwitchTestFlowHandler extends FlowRequestHandler<SwitchTestFlowRequest, SwitchTestFlowResponse, SwitchTestFlowState> {
 
     flowName = SwitchTestFlowHandler.name;
 

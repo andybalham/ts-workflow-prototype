@@ -1,12 +1,12 @@
 import { FlowRequestHandler } from "../src/FlowRequestHandler";
 import { FlowBuilder } from "../src/FlowBuilder";
-import { FlowDefinition, EndFlowStep } from "../src/FlowDefinition";
+import { FlowDefinition } from "../src/FlowDefinition";
 import { FlowContext } from "../src/FlowContext";
 import { expect } from "chai";
 import { IActivityRequestHandler, FlowHandlers } from "../src/FlowHandlers";
 
 describe('Handlers', () => {
-
+    
     it('can handle DipCreated scenario', () => {
 
         const flowRequest = new DipCreationRequest();
@@ -88,7 +88,7 @@ describe('Handlers', () => {
     });
 });
 
-class DipCreationHandler extends FlowRequestHandler<DipCreationRequest, DipCreationResponse, DipCreationState> {
+export class DipCreationHandler extends FlowRequestHandler<DipCreationRequest, DipCreationResponse, DipCreationState> {
 
     flowName = DipCreationHandler.name;
 

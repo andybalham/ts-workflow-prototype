@@ -42,11 +42,21 @@ export class ActivityFlowStep<TReq, TRes, TState> extends FlowStep {
     readonly bindState: (response: TRes, state: TState) => void;
 }
 
-export class DecisionFlowStep<TDecision, TState> extends FlowStep {
+export abstract class DecisionFlowStepBase extends FlowStep {
+
+    constructor(stepName: string) {
+        super(FlowStepType.Decision, stepName);
+    }
+
+    abstract get caseTargets(): DecisionBranchTarget[];
+    abstract get elseTarget(): DecisionBranchTarget;
+}
+
+export class DecisionFlowStep<TDecision, TState> extends DecisionFlowStepBase {
 
     constructor(stepName: string, getValue: (state: TState) => TDecision) {
 
-        super(FlowStepType.Decision, stepName);
+        super(stepName);
 
         this.getValue = getValue;
         this.caseBranches = [];
@@ -56,6 +66,14 @@ export class DecisionFlowStep<TDecision, TState> extends FlowStep {
     readonly getValue: (state: TState) => TDecision;
     readonly caseBranches: CaseDecisionBranch<TDecision>[];
     readonly elseBranch: ElseDecisionBranch;
+
+    get caseTargets(): DecisionBranchTarget[] {
+        return this.caseBranches.map(b => b.target);
+    }
+
+    get elseTarget(): DecisionBranchTarget {
+        return this.elseBranch.target;
+    }
 }
 
 export class EndFlowStep extends FlowStep {

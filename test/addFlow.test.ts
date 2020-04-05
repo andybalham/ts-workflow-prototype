@@ -36,7 +36,7 @@ class SumFlowState {
     total: number;
 }
 
-class SumFlowHandler extends FlowRequestHandler<SumFlowRequest, SumFlowResponse, SumFlowState> {
+export class SumFlowHandler extends FlowRequestHandler<SumFlowRequest, SumFlowResponse, SumFlowState> {
 
     flowName = SumFlowHandler.name;
 
@@ -54,13 +54,21 @@ class SumFlowHandler extends FlowRequestHandler<SumFlowRequest, SumFlowResponse,
                     state.total = 0;
                 })
 
-            .perform("Sum_a_and_b", SumActivityRequest, SumActivityResponse,
-                (req, state) => { req.values = [state.a, state.b]; },
-                (res, state) => { state.total = res.total; })
+            .goto("Sum_a_and_b")
 
             .perform("Sum_total_and_c", SumActivityRequest, SumActivityResponse,
                 (req, state) => { req.values = [state.total, state.c]; },
                 (res, state) => { state.total = res.total; })
+
+            .end()
+
+            .perform("Sum_a_and_b", SumActivityRequest, SumActivityResponse,
+                (req, state) => { req.values = [state.a, state.b]; },
+                (res, state) => { state.total = res.total; })
+
+            .label("This is a label")
+            
+            .goto("Sum_total_and_c")
 
             .finalise(SumFlowResponse,
                 (res, state) => {

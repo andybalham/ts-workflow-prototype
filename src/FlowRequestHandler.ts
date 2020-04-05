@@ -1,8 +1,8 @@
+import fs = require('fs');
 import { FlowBuilder } from "./FlowBuilder";
-import { FlowDefinition, FlowStepType, DecisionBranchTarget, DecisionBranch, DecisionBranchTargetType, FlowStep, GotoFlowStep } from "./FlowDefinition";
+import { FlowDefinition, FlowStepType, DecisionBranchTarget, DecisionBranch, DecisionBranchTargetType, FlowStep, GotoFlowStep, DecisionFlowStep, DecisionFlowStepBase } from "./FlowDefinition";
 import { IActivityRequestHandler, FlowHandlers } from "./FlowHandlers";
 import { FlowContext, FlowInstanceStackFrame } from "./FlowContext";
-import uuid = require("uuid");
 
 export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivityRequestHandler<TReq, TRes> {
 
@@ -21,6 +21,107 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
     }
 
     abstract buildFlow(flowBuilder: FlowBuilder<TReq, TRes, TState>): FlowDefinition<TReq, TRes, TState>;
+
+    appendDiagram(fileName: string) {
+
+        function append(text: string) { fs.appendFileSync(fileName, text); }
+        function appendLine(text: string) { append(`${text}\n`); }
+        function getCanonicalName(name: string) { return name?.replace(/[^a-zA-Z_]/gi, '_'); }
+
+        appendLine(`# ${this.flowName}`);
+        appendLine('');
+        appendLine('```mermaid');
+        appendLine('graph TB');
+
+        const visitedNodes = new Set<string>();
+
+        function appendNodes(stepIndex: number, flowDefinition: FlowDefinition<TReq, TRes, TState>) {
+
+            if (stepIndex === flowDefinition.steps.length) {
+                appendLine('_End_([End])');
+                return;
+            }
+
+            const step = flowDefinition.steps[stepIndex];
+
+            if (step.name !== undefined) {
+
+                if (visitedNodes.has(step.name)) {
+                    appendLine(`${getCanonicalName(step.name)}`);
+                    return;
+                }
+    
+                visitedNodes.add(step.name);                    
+            }
+
+            switch (step.type) {
+
+                case FlowStepType.Activity:
+                    appendLine(`${getCanonicalName(step.name)}["${step.name}"] --> `);
+                    appendNodes(stepIndex + 1, flowDefinition);
+                    break;
+
+                case FlowStepType.Label:
+                    appendLine(`${getCanonicalName(step.name)}[/"${step.name}"\\] --> `);
+                    appendNodes(stepIndex + 1, flowDefinition);
+                    break;
+
+                case FlowStepType.Goto:
+                    const gotoStep = step as GotoFlowStep;
+                    const targetIndex = flowDefinition.steps.findIndex(step => step.name === gotoStep.targetStepName);
+                    appendNodes(targetIndex, flowDefinition);
+                    break;
+
+                case FlowStepType.End:
+                    appendLine('_End_([End])');
+                    break;
+
+                case FlowStepType.Decision:
+                    const decisionStep = step as DecisionFlowStepBase;
+                    for (const branchTarget of decisionStep.caseTargets) {
+                        addBranchTarget(branchTarget);
+                    }
+                    addBranchTarget(decisionStep.elseTarget);
+                    break;
+
+                default:
+                    throw new Error(`Unhandled step.type: ${step.type}`);
+            }
+
+            function addBranchTarget(branchTarget: DecisionBranchTarget) {
+
+                appendLine(`${getCanonicalName(step.name)}{{"${step.name}"}} --> `);
+
+                switch (branchTarget.type) {
+                    case DecisionBranchTargetType.Continue:
+                        appendNodes(stepIndex + 1, flowDefinition);
+                        break;
+
+                    case DecisionBranchTargetType.Goto:
+                        const targetIndex = flowDefinition.steps.findIndex(step => step.name === branchTarget.stepName);
+                        appendNodes(targetIndex, flowDefinition);
+                        break;
+
+                    case DecisionBranchTargetType.End:
+                        appendLine('_End_([End])');
+                        break;
+
+                    case DecisionBranchTargetType.Error:
+                        appendLine('_Error_([Error])');
+                        break;
+
+                    default:
+                        break;
+                }
+            }
+        }
+
+        if (this.flowDefinition.steps.length > 0) {
+            appendNodes(0, this.flowDefinition);
+        }
+
+        appendLine('```');
+    }
 
     handle(flowContext: FlowContext, request?: TReq): TRes {
 
@@ -232,3 +333,4 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
         return stepIndex + 1;
     }
 }
+
