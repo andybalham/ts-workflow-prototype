@@ -3,14 +3,14 @@ import { FlowBuilder } from "../src/FlowBuilder";
 import { FlowDefinition, EndFlowStep } from "../src/FlowDefinition";
 import { FlowContext } from "../src/FlowContext";
 import { expect } from "chai";
-import { IActivityRequestHandler } from "../src/FlowHandlers";
+import { IActivityRequestHandler, FlowHandlers } from "../src/FlowHandlers";
 
 describe('Handlers', () => {
     it('can be mocked', () => {
 
         const flowContext = new FlowContext();
 
-        flowContext.handlers
+        flowContext.handlers = new FlowHandlers()
             .register(DipValidateProductAndFeeRequest, DipValidateProductAndFeeResponse, new DipValidateProductAndFeeHandler())
             .register(DipValidateMortgageClubRequest, DipValidateMortgageClubResponse, new DipValidateMortgageClubHandler())
             .register(UpdateCaseStatusRequest, EmptyResponse, new UpdateCaseStatusHandler())

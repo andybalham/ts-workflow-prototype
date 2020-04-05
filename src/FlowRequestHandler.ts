@@ -24,21 +24,33 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
 
     handle(flowContext: FlowContext, request?: TReq): TRes {
 
-        let isRoot;
-
+        let wasResume: boolean;
+        let isRoot: boolean;
+        
         if (flowContext.isResume) {
+            wasResume = flowContext.isResume;
             isRoot = (flowContext.resumeStackFrames.length === flowContext.resumeStackFrameCount);
             flowContext.stackFrames.push(flowContext.resumeStackFrames.pop());
         } else {
+            wasResume = false;
             isRoot = (flowContext.stackFrames.length === 0);
             flowContext.stackFrames.push(new FlowInstanceStackFrame(this.flowName, new this.StateType()));
         }
 
         const response = this.performFlow(flowContext, this.flowDefinition, request);
 
-        if (response !== undefined) {
+        const hasResponse = response !== undefined;
+
+        if (hasResponse) {
+
             flowContext.stackFrames.pop();
+
+            if (isRoot && wasResume) {
+                flowContext.deleteInstance();
+            }
+
         } else if (isRoot) {
+            
             flowContext.saveInstance();
         }
 
@@ -192,7 +204,6 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
         const stepResponse = flowContext.handlers.sendRequest(flowContext, step.RequestType, stepRequest);
 
         if (stepResponse === undefined) {
-            flowContext.saveInstance();
             return undefined;
         }
 

@@ -4,7 +4,11 @@ export interface IActivityRequestHandler<TReq, TRes> {
     handle(flowContext: FlowContext, request: TReq): TRes;
 }
 
-export class FlowHandlers {
+export interface IFlowHandlers {
+    sendRequest<TReq, TRes>(flowContext: FlowContext, RequestType: new () => TReq, request: TReq): TRes;
+}
+
+export class FlowHandlers implements IFlowHandlers {
 
     private handlerMap = new Map<string, any>();
 

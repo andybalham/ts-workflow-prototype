@@ -1,12 +1,13 @@
 import uuid = require("uuid");
-import { FlowHandlers } from "./FlowHandlers";
+import { FlowHandlers, IFlowHandlers } from "./FlowHandlers";
 import { IFlowInstanceRepository } from "./FlowInstanceRepository";
 
 export class FlowContext {
 
-    readonly instanceId: string;
-    readonly handlers: FlowHandlers; // TODO 02Apr20: Should we link to a IoC-style container?
+    handlers: IFlowHandlers;
+
     readonly instanceRespository: IFlowInstanceRepository;
+    readonly instanceId: string;
     readonly stackFrames: FlowInstanceStackFrame[];
     asyncRequestId: string;
 
@@ -14,15 +15,20 @@ export class FlowContext {
     readonly resumeStackFrameCount: number;
     asyncResponse: any;
 
-    constructor(instanceRespository?: IFlowInstanceRepository, instanceId?: string, stackFrames?: FlowInstanceStackFrame[], asyncResponse?: any) {
+    constructor(instanceRespository?: IFlowInstanceRepository, instanceId?: string, asyncResponse?: any) {
 
         this.handlers = new FlowHandlers();
         this.instanceRespository = instanceRespository;
         this.stackFrames = [];
 
         if (instanceId === undefined) {
+
             this.instanceId = uuid.v4();
+
         } else {
+
+            const stackFrames = instanceRespository.retrieve(instanceId);
+
             this.instanceId = instanceId;
             this.asyncResponse = asyncResponse;
             this.resumeStackFrames = stackFrames.reverse();
@@ -39,8 +45,12 @@ export class FlowContext {
     }
 
     saveInstance() {
-        this.instanceRespository.save(this.instanceId, this.stackFrames);
-    }    
+        this.instanceRespository.upsert(this.instanceId, this.stackFrames);
+    }
+
+    deleteInstance() {
+        this.instanceRespository.delete(this.instanceId);
+    }
 }
 
 export class FlowInstanceStackFrame {

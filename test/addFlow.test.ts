@@ -74,7 +74,7 @@ describe('Handlers', () => {
     it('returns the total of the inputs', () => {
 
         const flowContext = new FlowContext();
-        flowContext.handlers
+        flowContext.handlers = new FlowHandlers()
             .register(SumActivityRequest, SumActivityResponse, new SumActivityHandler());
 
         const request = new SumFlowRequest();

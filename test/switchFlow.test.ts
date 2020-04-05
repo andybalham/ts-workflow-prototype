@@ -86,7 +86,7 @@ describe("Switch test", () => {
         it(`returns the expected rating ${JSON.stringify(theory)}`, () => {
 
             const flowContext = new FlowContext();
-            flowContext.handlers
+            flowContext.handlers = new FlowHandlers()
                 .register(NullActivityRequest, NullActivityResponse, new NullActivityHandler());
 
             const request = new SwitchTestFlowRequest();
