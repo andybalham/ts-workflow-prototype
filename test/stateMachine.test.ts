@@ -6,7 +6,68 @@ import { expect } from "chai";
 import { IActivityRequestHandler, FlowHandlers } from "../src/FlowHandlers";
 
 describe('Handlers', () => {
-    it('can be mocked', () => {
+
+    it('can handle DipCreated scenario', () => {
+
+        const flowRequest = new DipCreationRequest();
+        flowRequest.caseId = "caseId";
+        flowRequest.lender = "lender";
+        flowRequest.options = { debug: true };
+        flowRequest.timestamp = new Date();
+
+        const flowContext = new FlowContext();
+
+        flowContext.mocks
+            .add<DipValidateProductAndFeeRequest, DipValidateProductAndFeeResponse>(
+                "Validate Product And Fees", request => {
+                    expect(request.caseId).to.equal(flowRequest.caseId);
+                    expect(request.lender).to.equal(flowRequest.lender);
+                    expect(request.options).to.deep.equal(flowRequest.options);
+                    expect(request.timestamp).to.equal(flowRequest.timestamp);
+                    return { validationResult: ProductAndFeeValidationResult.Success };
+                })
+            .add<DipValidateMortgageClubRequest, DipValidateMortgageClubResponse>(
+                "Validate Mortgage Club", request => {
+                    expect(request.caseId).to.equal(flowRequest.caseId);
+                    expect(request.lender).to.equal(flowRequest.lender);
+                    expect(request.options).to.deep.equal(flowRequest.options);
+                    expect(request.timestamp).to.equal(flowRequest.timestamp);
+                    return { validationResult: MortgageClubValidationResult.Success };
+                })
+            .add<UpdateCaseStatusRequest, EmptyResponse>(
+                "Update Case Status (DipDecisionInProgress)", request => {
+                    expect(request.caseId).to.equal(flowRequest.caseId);
+                    expect(request.caseStatus).to.equal(DipCaseStatus.DipDecisionInProgress);
+                    return {};
+                })
+            .add<SendCaseStatusUpdatedEventRequest, EmptyResponse>(
+                "Send Case Status Updated Event (DipDecisionInProgress)", request => {
+                    expect(request.caseId).to.equal(flowRequest.caseId);
+                    expect(request.lender).to.equal(flowRequest.lender);
+                    expect(request.updateAt).to.equal(flowRequest.timestamp);
+                    expect(request.caseStatus).to.equal(DipCaseStatus.DipDecisionInProgress);
+                    return {};
+                })
+            .add<DipCreateCaseRequest, EmptyResponse>(
+                "Create Case", request => {
+                    expect(request.caseId).to.equal(flowRequest.caseId);
+                    expect(request.lender).to.equal(flowRequest.lender);
+                    expect(request.options).to.deep.equal(flowRequest.options);
+                    expect(request.timestamp).to.equal(flowRequest.timestamp);
+                    return {};
+                })
+            .add<EmptyRequest, EmptyResponse>(
+                "Set overall result - Dip Created", _request => {
+                    return {};
+                })
+            ;
+
+        const flowResponse = new DipCreationHandler().handle(flowContext, flowRequest);
+
+        expect(flowResponse?.result).to.equal(DipCreationResult.DipCreated);
+    });
+
+    it('can be run with handlers', () => {
 
         const flowContext = new FlowContext();
 
@@ -27,6 +88,144 @@ describe('Handlers', () => {
     });
 });
 
+class DipCreationHandler extends FlowRequestHandler<DipCreationRequest, DipCreationResponse, DipCreationState> {
+
+    flowName = DipCreationHandler.name;
+
+    constructor() {
+        super(DipCreationResponse, DipCreationState);
+    }
+
+    buildFlow(flowBuilder: FlowBuilder<DipCreationRequest, DipCreationResponse, DipCreationState>):
+        FlowDefinition<DipCreationRequest, DipCreationResponse, DipCreationState> {
+
+        return flowBuilder
+            .initialise((req, state) => {
+                state.caseId = req.caseId;
+                state.lender = req.lender;
+                state.options = req.options;
+                state.timestamp = req.timestamp;
+            })
+
+            // Validate Product And Fees
+
+            .perform("Validate Product And Fees", DipValidateProductAndFeeRequest, DipValidateProductAndFeeResponse,
+                (req, state) => {
+                    req.caseId = state.caseId;
+                    req.lender = state.lender;
+                    req.options = state.options;
+                    req.timestamp = state.timestamp;
+                },
+                (res, state) => {
+                    state.productAndFeeValidationResult = res.validationResult;
+                })
+
+            .evaluate("Product And Fee Validation Result", state => state.productAndFeeValidationResult, cases => cases
+                .when(v => v === ProductAndFeeValidationResult.Success).goto("Validate Mortgage Club")
+                .when(v => v === ProductAndFeeValidationResult.InvalidProduct).goto("Invalid Product Selection")
+                .when(v => v === ProductAndFeeValidationResult.InvalidFee).goto("Invalid Fee Selection")
+                .when(v => v === ProductAndFeeValidationResult.Error).goto("Unknown Failure State")
+            ).else().error(v => `Unexpected product and fee validation result: ${v}`)
+
+            .perform("Invalid Product Selection", EmptyRequest, EmptyResponse, (_req, _state) => { },
+                (_res, state) => { state.validationStatus = DipValidationStatus.ProductValidationFailed })
+            .goto("HandledFailureState")
+
+            .perform("Invalid Fee Selection", EmptyRequest, EmptyResponse, (_req, _state) => { },
+                (_res, state) => { state.validationStatus = DipValidationStatus.ProductFeeValidationFailed })
+            .goto("HandledFailureState")
+
+            // Validate Mortgage Club
+
+            .perform("Validate Mortgage Club", DipValidateMortgageClubRequest, DipValidateMortgageClubResponse,
+                (req, state) => {
+                    req.caseId = state.caseId;
+                    req.lender = state.lender;
+                    req.options = state.options;
+                    req.timestamp = state.timestamp;
+                },
+                (res, state) => {
+                    state.mortgageClubValidationResult = res.validationResult;
+                })
+
+            .evaluate("Mortgage Club Validation Result", state => state.mortgageClubValidationResult, cases => cases
+                .when(v => v === MortgageClubValidationResult.Success).goto("Validation Success")
+                .when(v => v === MortgageClubValidationResult.InvalidMortgageClub).goto("Invalid Mortgage Club")
+                .when(v => v === MortgageClubValidationResult.Error).goto("Unknown Failure State")
+            ).else().error(v => `Unexpected mortgage club validation result: ${v}`)
+
+            .perform("Invalid Mortgage Club", EmptyRequest, EmptyResponse, (_req, _state) => { },
+                (_res, state) => { state.validationStatus = DipValidationStatus.MortgageClubValidationFailed })
+            .goto("HandledFailureState")
+
+            // Validation Success
+
+            .label("Validation Success")
+
+            .perform("Update Case Status (DipDecisionInProgress)", UpdateCaseStatusRequest, EmptyResponse,
+                (req, state) => {
+                    req.caseId = state.caseId;
+                    req.caseStatus = DipCaseStatus.DipDecisionInProgress;
+                })
+
+            .perform("Send Case Status Updated Event (DipDecisionInProgress)", SendCaseStatusUpdatedEventRequest, EmptyResponse,
+                (req, state) => {
+                    req.caseId = state.caseId;
+                    req.caseStatus = DipCaseStatus.DipDecisionInProgress;
+                    req.lender = state.lender;
+                    req.updateAt = state.timestamp;
+                })
+
+            .perform("Create Case", DipCreateCaseRequest, EmptyResponse,
+                (req, state) => {
+                    req.caseId = state.caseId;
+                    req.lender = state.lender;
+                    req.options = state.options;
+                    req.timestamp = state.timestamp;
+                })
+
+            .perform("Set overall result - Dip Created", EmptyRequest, EmptyResponse, (_req, _state) => { },
+                (_res, state) => { state.overallResult = DipCreationResult.DipCreated })
+
+            .end()
+
+            // Handled Failures
+
+            .label("HandledFailureState")
+
+            .perform("Update Case Status for Known Failure", UpdateValidationStatusRequest, EmptyResponse,
+                (req, state) => {
+                    req.caseId = state.caseId;
+                    req.validationStatus = state.validationStatus;
+                })
+
+            .perform("Send Case Status Updated Event (ValidationFailure)", SendCaseStatusUpdatedEventRequest, EmptyResponse,
+                (req, state) => {
+                    req.caseId = state.caseId;
+                    req.caseStatus = state.validationStatus;
+                    req.lender = state.lender;
+                    req.updateAt = state.timestamp;
+                })
+
+            .perform("Set overall result - Failed Validation", EmptyRequest, EmptyResponse, (_req, _state) => { },
+                (_res, state) => { state.overallResult = DipCreationResult.FailedValidation })
+
+            .end()
+
+            // Unknown failures
+
+            .label("Unknown Failure State")
+
+            .perform("Set overall result - Error", EmptyRequest, EmptyResponse, (_req, _state) => { },
+                (_res, state) => { state.overallResult = DipCreationResult.Error })
+
+            .end()
+
+            .finalise(DipCreationResponse, (res, state) => {
+                res.result = state.overallResult;
+            });
+    }
+}
 class DipCreationRequest {
     caseId: string;
     lender: string;
@@ -114,7 +313,7 @@ enum MortgageClubValidationResult {
 
 class UpdateCaseStatusRequest {
     caseId: string;
-    caseStatus: string;
+    caseStatus: DipCaseStatus;
 }
 
 class UpdateCaseStatusHandler implements IActivityRequestHandler<UpdateCaseStatusRequest, EmptyResponse> {
@@ -167,144 +366,5 @@ class EmptyResponse { }
 class EmptyHandler implements IActivityRequestHandler<EmptyRequest, EmptyResponse> {
     handle(flowContext: FlowContext, request: EmptyRequest): EmptyResponse {
         return {};
-    }
-}
-
-class DipCreationHandler extends FlowRequestHandler<DipCreationRequest, DipCreationResponse, DipCreationState> {
-
-    flowName = DipCreationHandler.name;
-
-    constructor() {
-        super(DipCreationResponse, DipCreationState);
-    }
-
-    buildFlow(flowBuilder: FlowBuilder<DipCreationRequest, DipCreationResponse, DipCreationState>):
-        FlowDefinition<DipCreationRequest, DipCreationResponse, DipCreationState> {
-
-        return flowBuilder
-            .initialise((req, state) => {
-                state.caseId = req.caseId;
-                state.lender = req.lender;
-                state.options = req.options;
-                state.timestamp = req.timestamp;
-            })
-
-            // Validate Product And Fees
-
-            .perform("Validate Product And Fees", DipValidateProductAndFeeRequest, DipValidateProductAndFeeResponse,
-                (req, state) => {
-                    req.caseId = state.caseId;
-                    req.lender = state.lender;
-                    req.options = state.options;
-                    req.timestamp = state.timestamp;
-                },
-                (res, state) => {
-                    state.productAndFeeValidationResult = res.validationResult;
-                })
-
-            .evaluate("Product And Fee Validation Result", state => state.productAndFeeValidationResult, cases => cases
-                .when(v => v === ProductAndFeeValidationResult.Success).goto("Validate Mortgage Club")
-                .when(v => v === ProductAndFeeValidationResult.InvalidProduct).goto("Invalid Product Selection")
-                .when(v => v === ProductAndFeeValidationResult.InvalidFee).goto("Invalid Fee Selection")
-                .when(v => v === ProductAndFeeValidationResult.Error).goto("Unknown Failure State")
-            ).else().error(v => `Unexpected product and fee validation result: ${v}`)
-
-            .perform("Invalid Product Selection", EmptyRequest, EmptyResponse, (_req, _state) => { },
-                (_res, state) => { state.validationStatus = DipValidationStatus.ProductValidationFailed })
-            .goto("HandledFailureState")
-
-            .perform("Invalid Fee Selection", EmptyRequest, EmptyResponse, (_req, _state) => { },
-                (_res, state) => { state.validationStatus = DipValidationStatus.ProductFeeValidationFailed })
-            .goto("HandledFailureState")
-
-            // Validate Mortgage Club
-
-            .perform("Validate Mortgage Club", DipValidateMortgageClubRequest, DipValidateMortgageClubResponse,
-                (req, state) => {
-                    req.caseId = state.caseId;
-                    req.lender = state.lender;
-                    req.options = state.options;
-                    req.timestamp = state.timestamp;
-                },
-                (res, state) => {
-                    state.mortgageClubValidationResult = res.validationResult;
-                })
-
-            .evaluate("Mortgage Club Validation Result", state => state.mortgageClubValidationResult, cases => cases
-                .when(v => v === MortgageClubValidationResult.Success).goto("Validation Success")
-                .when(v => v === MortgageClubValidationResult.InvalidMortgageClub).goto("Invalid Mortgage Club")
-                .when(v => v === MortgageClubValidationResult.Error).goto("Unknown Failure State")
-            ).else().error(v => `Unexpected mortgage club validation result: ${v}`)
-
-            .perform("Invalid Mortgage Club", EmptyRequest, EmptyResponse, (_req, _state) => { },
-                (_res, state) => { state.validationStatus = DipValidationStatus.MortgageClubValidationFailed })
-            .goto("HandledFailureState")
-
-            // Validation Success
-
-            .label("Validation Success")
-
-            .perform("Update Case Status (DipDecisionInProgress)", UpdateCaseStatusRequest, EmptyResponse,
-                (req, state) => {
-                    req.caseId = state.caseId;
-                    req.caseStatus = "DipDecisionInProgress";
-                })
-
-            .perform("Send Case Status Updated Event (DipDecisionInProgress)", SendCaseStatusUpdatedEventRequest, EmptyResponse,
-                (req, state) => {
-                    req.caseId = state.caseId;
-                    req.caseStatus = DipCaseStatus.DipDecisionInProgress;
-                    req.lender = state.lender;
-                    req.updateAt = state.timestamp;
-                })
-
-            .perform("Create Case", DipCreateCaseRequest, EmptyResponse,
-                (req, state) => {
-                    req.caseId = state.caseId;
-                    req.lender = state.lender;
-                    req.options = state.options;
-                    req.timestamp = state.timestamp;
-                })
-
-            .perform("Set overall result - Dip Created", EmptyRequest, EmptyResponse, (_req, _state) => { },
-                (_res, state) => { state.overallResult = DipCreationResult.DipCreated })
-
-            .end()
-
-            // Handled Failures
-
-            .label("HandledFailureState")
-
-            .perform("Update Case Status for Known Failure", UpdateValidationStatusRequest, EmptyResponse,
-                (req, state) => {
-                    req.caseId = state.caseId;
-                    req.validationStatus = state.validationStatus;
-                })
-
-            .perform("Send Case Status Updated Event (ValidationFailure)", SendCaseStatusUpdatedEventRequest, EmptyResponse,
-                (req, state) => {
-                    req.caseId = state.caseId;
-                    req.caseStatus = state.validationStatus;
-                    req.lender = state.lender;
-                    req.updateAt = state.timestamp;
-                })
-
-            .perform("Set overall result - Failed Validation", EmptyRequest, EmptyResponse, (_req, _state) => { },
-                (_res, state) => { state.overallResult = DipCreationResult.FailedValidation })
-
-            .end()
-
-            // Unknown failures
-
-            .label("Unknown Failure State")
-
-            .perform("Set overall result - Error", EmptyRequest, EmptyResponse, (_req, _state) => { },
-                (_res, state) => { state.overallResult = DipCreationResult.Error })
-
-            .end()
-
-            .finalise(DipCreationResponse, (res, state) => {
-                res.result = state.overallResult;
-            });
     }
 }

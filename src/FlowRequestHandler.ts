@@ -26,7 +26,7 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
 
         let wasResume: boolean;
         let isRoot: boolean;
-        
+
         if (flowContext.isResume) {
             wasResume = flowContext.isResume;
             isRoot = (flowContext.resumeStackFrames.length === flowContext.resumeStackFrameCount);
@@ -50,7 +50,7 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
             }
 
         } else if (isRoot) {
-            
+
             flowContext.saveInstance();
         }
 
@@ -201,7 +201,12 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
 
         this.debugPreActivityRequest(step.name, stepRequest, flowContext.currentStackFrame.state);
 
-        const stepResponse = flowContext.handlers.sendRequest(flowContext, step.RequestType, stepRequest);
+        const mockResponse = flowContext.getMockResponse(step.name, stepRequest);
+
+        const stepResponse =
+            mockResponse === undefined
+                ? flowContext.handlers.sendRequest(flowContext, step.RequestType, stepRequest)
+                : mockResponse;
 
         if (stepResponse === undefined) {
             return undefined;

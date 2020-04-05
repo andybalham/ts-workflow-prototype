@@ -1,6 +1,7 @@
 import uuid = require("uuid");
 import { FlowHandlers, IFlowHandlers } from "./FlowHandlers";
 import { IFlowInstanceRepository } from "./FlowInstanceRepository";
+import { FlowMocks } from "./FlowMocks";
 
 export class FlowContext {
 
@@ -14,10 +15,14 @@ export class FlowContext {
     readonly resumeStackFrames: FlowInstanceStackFrame[];
     readonly resumeStackFrameCount: number;
     asyncResponse: any;
+    
+    readonly mocks: FlowMocks;
 
     constructor(instanceRespository?: IFlowInstanceRepository, instanceId?: string, asyncResponse?: any) {
 
         this.handlers = new FlowHandlers();
+        this.mocks = new FlowMocks();
+
         this.instanceRespository = instanceRespository;
         this.stackFrames = [];
 
@@ -50,6 +55,19 @@ export class FlowContext {
 
     deleteInstance() {
         this.instanceRespository.delete(this.instanceId);
+    }
+
+    getMockResponse(stepName: any, request: any) {
+
+        const isRootFlow = this.stackFrames.length === 1;
+
+        if (!isRootFlow) {            
+            return undefined;
+        }
+
+        const mockResponse = this.mocks.getResponse(stepName, request);
+        
+        return mockResponse;
     }
 }
 
