@@ -48,60 +48,53 @@ describe('Handlers', () => {
 
         const response01 = new ParentFlowHandler().handle(flowContext, request);
 
-        expect(flowContext.instanceId).to.not.be.undefined;
+        expect(response01).to.be.undefined;
         expect(flowInstanceRepository.retrieve(flowContext.instanceId)).to.not.be.undefined;
         expect(flowContext.asyncRequestId).to.not.be.undefined;
-        expect(response01).to.be.undefined;
 
-        const firstInstanceId = flowContext.instanceId;
+        const instanceId = flowContext.instanceId;
 
         // Send back asynchronous response 01
 
         const asyncResponse01 =
             new SyncSumActivityHandler().handle(new FlowContext(), JSON.parse(asyncActivityHandler.requestJson));
 
-        flowContext = new FlowContext(flowInstanceRepository, flowContext.instanceId, asyncResponse01);
+        flowContext = new FlowContext(flowInstanceRepository, instanceId, asyncResponse01);
         flowContext.handlers = asyncHandlers;
 
         const response02 = new ParentFlowHandler().handle(flowContext);
 
-        expect(flowContext.instanceId).to.not.be.undefined;
-        expect(flowContext.instanceId).equal(firstInstanceId);
-        expect(flowInstanceRepository.retrieve(flowContext.instanceId)).to.not.be.undefined;
-        expect(flowContext.asyncRequestId).to.not.be.undefined;
         expect(response02).to.be.undefined;
+        expect(flowInstanceRepository.retrieve(instanceId)).to.not.be.undefined;
+        expect(flowContext.asyncRequestId).to.not.be.undefined;
 
         // Send back asynchronous response 02
 
         const asyncResponse02 =
             new SyncSumActivityHandler().handle(new FlowContext(), JSON.parse(asyncActivityHandler.requestJson));
 
-        flowContext = new FlowContext(flowInstanceRepository, flowContext.instanceId, asyncResponse02);
+        flowContext = new FlowContext(flowInstanceRepository, instanceId, asyncResponse02);
         flowContext.handlers = asyncHandlers;
 
         const response03 = new ParentFlowHandler().handle(flowContext);
 
-        expect(flowContext.instanceId).to.not.be.undefined;
-        expect(flowContext.instanceId).equal(firstInstanceId);
-        expect(flowInstanceRepository.retrieve(flowContext.instanceId)).to.not.be.undefined;
-        expect(flowContext.asyncRequestId).to.not.be.undefined;
         expect(response03).to.be.undefined;
+        expect(flowInstanceRepository.retrieve(instanceId)).to.not.be.undefined;
+        expect(flowContext.asyncRequestId).to.not.be.undefined;
 
         // Send back asynchronous response 03
 
         const asyncResponse03 =
             new SyncSumActivityHandler().handle(new FlowContext(), JSON.parse(asyncActivityHandler.requestJson));
 
-        flowContext = new FlowContext(flowInstanceRepository, flowContext.instanceId, asyncResponse03);
+        flowContext = new FlowContext(flowInstanceRepository, instanceId, asyncResponse03);
         flowContext.handlers = asyncHandlers;
 
         const response04 = new ParentFlowHandler().handle(flowContext);
 
-        expect(flowContext.instanceId).to.be.not.undefined;
-        expect(flowContext.instanceId).equal(firstInstanceId);
-        expect(flowInstanceRepository.retrieve(flowContext.instanceId)).to.be.undefined;
-        expect(flowContext.asyncRequestId).to.be.undefined;
         expect(response04.total).to.be.equal(666);
+        expect(flowInstanceRepository.retrieve(instanceId)).to.be.undefined;
+        expect(flowContext.asyncRequestId).to.be.undefined;
     });
 });
 
