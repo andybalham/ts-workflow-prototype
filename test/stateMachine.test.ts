@@ -115,7 +115,6 @@ export class DipCreationHandler extends FlowRequestHandler<DipCreationRequest, D
                 (res, state) => {
                     state.productAndFeeValidationResult = res.validationResult;
                 })
-
             .evaluate("Product And Fee Validation Result", state => state.productAndFeeValidationResult, cases => cases
                 .whenEqual(ProductAndFeeValidationResult.Success).goto("Validate Mortgage Club")
                 .whenEqual(ProductAndFeeValidationResult.InvalidProduct).goto("Invalid Product Selection")
@@ -123,12 +122,12 @@ export class DipCreationHandler extends FlowRequestHandler<DipCreationRequest, D
                 .whenEqual(ProductAndFeeValidationResult.Error).goto("Unknown Failure State")
             ).else().error(v => `Unexpected product and fee validation result: ${v}`)
 
-            .perform("Invalid Product Selection", EmptyRequest, EmptyResponse, (_req, _state) => { },
-                (_res, state) => { state.validationStatus = DipValidationStatus.ProductValidationFailed })
+            .setState("Invalid Product Selection", 
+                state => { state.validationStatus = DipValidationStatus.ProductValidationFailed })
             .goto("HandledFailureState")
 
-            .perform("Invalid Fee Selection", EmptyRequest, EmptyResponse, (_req, _state) => { },
-                (_res, state) => { state.validationStatus = DipValidationStatus.ProductFeeValidationFailed })
+            .setState("Invalid Fee Selection", 
+                state => { state.validationStatus = DipValidationStatus.ProductFeeValidationFailed })
             .goto("HandledFailureState")
 
             // Validate Mortgage Club
@@ -143,15 +142,14 @@ export class DipCreationHandler extends FlowRequestHandler<DipCreationRequest, D
                 (res, state) => {
                     state.mortgageClubValidationResult = res.validationResult;
                 })
-
             .evaluate("Mortgage Club Validation Result", state => state.mortgageClubValidationResult, cases => cases
                 .whenEqual(MortgageClubValidationResult.Success).goto("Validation Success")
                 .whenEqual(MortgageClubValidationResult.InvalidMortgageClub).goto("Invalid Mortgage Club")
                 .whenEqual(MortgageClubValidationResult.Error).goto("Unknown Failure State")
             ).else().error(v => `Unexpected mortgage club validation result: ${v}`)
 
-            .perform("Invalid Mortgage Club", EmptyRequest, EmptyResponse, (_req, _state) => { },
-                (_res, state) => { state.validationStatus = DipValidationStatus.MortgageClubValidationFailed })
+            .setState("Invalid Mortgage Club", 
+                state => { state.validationStatus = DipValidationStatus.MortgageClubValidationFailed })
             .goto("HandledFailureState")
 
             // Validation Success
@@ -215,7 +213,7 @@ export class DipCreationHandler extends FlowRequestHandler<DipCreationRequest, D
             .end()
 
             // Finalise
-            
+
             .finalise(DipCreationResponse, (res, state) => {
                 res.result = state.overallResult;
             });
