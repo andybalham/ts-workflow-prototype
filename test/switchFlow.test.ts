@@ -47,23 +47,17 @@ export class SwitchTestFlowHandler extends FlowRequestHandler<SwitchTestFlowRequ
                 (req, state) => { state.value = req.value })
 
             .evaluate("Value", state => state.value, cases => cases
-                .when(value => value >= 70).goto("SetRatingOfGood")
-                .when(value => value >= 40).goto("SetRatingOfOk")
+                .when(value => value >= 70, 'GE 70').goto("SetRatingOfGood")
+                .when(value => value >= 40, 'GE 40').goto("SetRatingOfOk")
             ).else().continue()
 
-            .perform("SetRatingOfPoor", NullActivityRequest, NullActivityResponse,
-                (_req, _state) => { },
-                (_res, state) => { state.rating = Rating.Poor })
+            .setState("SetRatingOfPoor", state => { state.rating = Rating.Poor })
             .goto("End")
 
-            .perform("SetRatingOfOk", NullActivityRequest, NullActivityResponse,
-                (_req, _state) => { },
-                (_res, state) => { state.rating = Rating.OK })
+            .setState("SetRatingOfOk", state => { state.rating = Rating.OK })
             .goto("End")
 
-            .perform("SetRatingOfGood", NullActivityRequest, NullActivityResponse,
-                (_req, _state) => { },
-                (_res, state) => { state.rating = Rating.Good })
+            .setState("SetRatingOfGood", state => { state.rating = Rating.Good })
             .goto("End")
 
             .label("End")

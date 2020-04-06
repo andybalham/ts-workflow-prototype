@@ -4,9 +4,10 @@ import { FlowDefinition } from "../src/FlowDefinition";
 import { FlowContext } from "../src/FlowContext";
 import { expect } from "chai";
 import { IActivityRequestHandler, FlowHandlers } from "../src/FlowHandlers";
+import { EmptyRequest, EmptyResponse } from "../src/FlowExchanges";
 
 describe('Handlers', () => {
-    
+
     it('can handle DipCreated scenario', () => {
 
         const flowRequest = new DipCreationRequest();
@@ -56,10 +57,6 @@ describe('Handlers', () => {
                     expect(request.timestamp).to.equal(flowRequest.timestamp);
                     return {};
                 })
-            .add<EmptyRequest, EmptyResponse>(
-                "Set overall result - Dip Created", _request => {
-                    return {};
-                })
             ;
 
         const flowResponse = new DipCreationHandler().handle(flowContext, flowRequest);
@@ -77,7 +74,6 @@ describe('Handlers', () => {
             .register(UpdateCaseStatusRequest, EmptyResponse, new UpdateCaseStatusHandler())
             .register(SendCaseStatusUpdatedEventRequest, EmptyResponse, new SendCaseStatusUpdatedEventHandler())
             .register(DipCreateCaseRequest, EmptyResponse, new DipCreateCaseHandler())
-            .register(EmptyRequest, EmptyResponse, new EmptyHandler())
             ;
 
         const request = new DipCreationRequest();
@@ -121,10 +117,10 @@ export class DipCreationHandler extends FlowRequestHandler<DipCreationRequest, D
                 })
 
             .evaluate("Product And Fee Validation Result", state => state.productAndFeeValidationResult, cases => cases
-                .when(v => v === ProductAndFeeValidationResult.Success).goto("Validate Mortgage Club")
-                .when(v => v === ProductAndFeeValidationResult.InvalidProduct).goto("Invalid Product Selection")
-                .when(v => v === ProductAndFeeValidationResult.InvalidFee).goto("Invalid Fee Selection")
-                .when(v => v === ProductAndFeeValidationResult.Error).goto("Unknown Failure State")
+                .whenEqual(ProductAndFeeValidationResult.Success).goto("Validate Mortgage Club")
+                .whenEqual(ProductAndFeeValidationResult.InvalidProduct).goto("Invalid Product Selection")
+                .whenEqual(ProductAndFeeValidationResult.InvalidFee).goto("Invalid Fee Selection")
+                .whenEqual(ProductAndFeeValidationResult.Error).goto("Unknown Failure State")
             ).else().error(v => `Unexpected product and fee validation result: ${v}`)
 
             .perform("Invalid Product Selection", EmptyRequest, EmptyResponse, (_req, _state) => { },
@@ -149,9 +145,9 @@ export class DipCreationHandler extends FlowRequestHandler<DipCreationRequest, D
                 })
 
             .evaluate("Mortgage Club Validation Result", state => state.mortgageClubValidationResult, cases => cases
-                .when(v => v === MortgageClubValidationResult.Success).goto("Validation Success")
-                .when(v => v === MortgageClubValidationResult.InvalidMortgageClub).goto("Invalid Mortgage Club")
-                .when(v => v === MortgageClubValidationResult.Error).goto("Unknown Failure State")
+                .whenEqual(MortgageClubValidationResult.Success).goto("Validation Success")
+                .whenEqual(MortgageClubValidationResult.InvalidMortgageClub).goto("Invalid Mortgage Club")
+                .whenEqual(MortgageClubValidationResult.Error).goto("Unknown Failure State")
             ).else().error(v => `Unexpected mortgage club validation result: ${v}`)
 
             .perform("Invalid Mortgage Club", EmptyRequest, EmptyResponse, (_req, _state) => { },
@@ -184,8 +180,7 @@ export class DipCreationHandler extends FlowRequestHandler<DipCreationRequest, D
                     req.timestamp = state.timestamp;
                 })
 
-            .perform("Set overall result - Dip Created", EmptyRequest, EmptyResponse, (_req, _state) => { },
-                (_res, state) => { state.overallResult = DipCreationResult.DipCreated })
+            .setState("Set overall result - Dip Created", state => { state.overallResult = DipCreationResult.DipCreated })
 
             .end()
 
@@ -207,8 +202,7 @@ export class DipCreationHandler extends FlowRequestHandler<DipCreationRequest, D
                     req.updateAt = state.timestamp;
                 })
 
-            .perform("Set overall result - Failed Validation", EmptyRequest, EmptyResponse, (_req, _state) => { },
-                (_res, state) => { state.overallResult = DipCreationResult.FailedValidation })
+            .setState("Set overall result - Failed Validation", state => { state.overallResult = DipCreationResult.FailedValidation })
 
             .end()
 
@@ -216,16 +210,18 @@ export class DipCreationHandler extends FlowRequestHandler<DipCreationRequest, D
 
             .label("Unknown Failure State")
 
-            .perform("Set overall result - Error", EmptyRequest, EmptyResponse, (_req, _state) => { },
-                (_res, state) => { state.overallResult = DipCreationResult.Error })
+            .setState("Set overall result - Error", state => { state.overallResult = DipCreationResult.Error })
 
             .end()
 
+            // Finalise
+            
             .finalise(DipCreationResponse, (res, state) => {
                 res.result = state.overallResult;
             });
     }
 }
+
 class DipCreationRequest {
     caseId: string;
     lender: string;
@@ -356,12 +352,6 @@ class DipCreateCaseHandler implements IActivityRequestHandler<DipCreateCaseReque
         return {};
     }
 }
-
-// TODO 04Apr20: These could be part of the library
-
-class EmptyRequest { }
-
-class EmptyResponse { }
 
 class EmptyHandler implements IActivityRequestHandler<EmptyRequest, EmptyResponse> {
     handle(flowContext: FlowContext, request: EmptyRequest): EmptyResponse {

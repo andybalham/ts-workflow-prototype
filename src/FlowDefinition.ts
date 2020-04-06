@@ -48,8 +48,8 @@ export abstract class DecisionFlowStepBase extends FlowStep {
         super(FlowStepType.Decision, stepName);
     }
 
-    abstract get caseTargets(): DecisionBranchTarget[];
-    abstract get elseTarget(): DecisionBranchTarget;
+    abstract get caseSummaries(): DecisionBranchSummary[];
+    abstract get elseSummary(): DecisionBranchSummary;
 }
 
 export class DecisionFlowStep<TDecision, TState> extends DecisionFlowStepBase {
@@ -67,12 +67,12 @@ export class DecisionFlowStep<TDecision, TState> extends DecisionFlowStepBase {
     readonly caseBranches: CaseDecisionBranch<TDecision>[];
     readonly elseBranch: ElseDecisionBranch;
 
-    get caseTargets(): DecisionBranchTarget[] {
-        return this.caseBranches.map(b => b.target);
+    get caseSummaries(): DecisionBranchSummary[] {
+        return this.caseBranches.map(b => { return { target: b.target, description: b.description }; });
     }
 
-    get elseTarget(): DecisionBranchTarget {
-        return this.elseBranch.target;
+    get elseSummary(): DecisionBranchSummary {
+        return { target: this.elseBranch.target, description: 'Else' };
     }
 }
 
@@ -98,6 +98,7 @@ export class GotoFlowStep extends FlowStep {
 
 export class DecisionBranch {
     target?: DecisionBranchTarget;
+    description?: string;
 }
 
 export class CaseDecisionBranch<TDecision> extends DecisionBranch {
@@ -118,4 +119,9 @@ export class DecisionBranchTarget {
     readonly type: DecisionBranchTargetType;
     readonly stepName?: string;
     readonly getErrorMessage?: (decisionValue: any) => string;
+}
+
+export class DecisionBranchSummary {
+    readonly target: DecisionBranchTarget;
+    readonly description?: string;
 }

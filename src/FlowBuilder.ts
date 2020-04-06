@@ -1,10 +1,13 @@
 import { FlowDefinition, ActivityFlowStep, DecisionFlowStep, LabelFlowStep, GotoFlowStep, EndFlowStep, CaseDecisionBranch, DecisionBranchTargetType, ElseDecisionBranch } from "./FlowDefinition";
+import { EmptyRequest, EmptyResponse } from "./FlowExchanges";
 
 export class FlowBuilder<TFlowReq, TFlowRes, TState> {
 
     private flowDefinition = new FlowDefinition<TFlowReq, TFlowRes, TState>();
 
     // TODO 07Mar20: Can we force initialise() to be first?
+
+    // TODO 05Apr20: Add a step to allow the state to be updated, e.g. setState(stepName: string, setState: (state: TState) => void)
 
     initialise(initialiseState: (request: TFlowReq, state: TState) => void) {
         this.flowDefinition.initialiseState = initialiseState;
@@ -22,6 +25,18 @@ export class FlowBuilder<TFlowReq, TFlowRes, TState> {
         bindState = (bindState === undefined) ? (_res, _state) => { } : bindState;
 
         const activityFlowStep = new ActivityFlowStep(stepName, RequestType, ResponseType, bindRequest, bindState);
+
+        this.flowDefinition.steps.push(activityFlowStep);
+
+        return this;
+    }
+
+    setState(stepName: string, setState: (state: any) => void) {
+
+        const bindRequest = (_req, _state) => { };
+        const bindState = (_res, state) => { setState(state); };
+
+        const activityFlowStep = new ActivityFlowStep(stepName, undefined, undefined, bindRequest, bindState);
 
         this.flowDefinition.steps.push(activityFlowStep);
 
@@ -67,15 +82,26 @@ export class SwitchCaseBuilder<TDecision, TFlowReq, TFlowRes, TState> {
         this.branches = branches;
     }
 
-    when(isTrue: (switchValue: TDecision) => boolean): SwitchCaseTargetBuilder<TDecision, TFlowReq, TFlowRes, TState> {
+    // TODO 05Apr20: Add whenEqual, and allow for multiple values
+
+    // TODO 05Apr20: Allow for description, for use in diagrams
+
+    when(isTrue: (switchValue: TDecision) => boolean, description?: string): SwitchCaseTargetBuilder<TDecision, TFlowReq, TFlowRes, TState> {
 
         const branch: CaseDecisionBranch<TDecision> = {
-            isTrue: isTrue
+            isTrue: isTrue,
+            description: description
         };
 
         this.branches.push(branch);
 
         return new SwitchCaseTargetBuilder(this, branch);
+    }
+
+    // TODO 06Apr20: Allow for multiple values
+
+    whenEqual(targetValue: TDecision) {
+        return this.when(v => v === targetValue, targetValue?.toString());
     }
 }
 
@@ -173,7 +199,7 @@ export class SwitchElseTargetBuilder<TFlowReq, TFlowRes, TState> {
 
     error(getErrorMessage?: (decisionValue: any) => string): FlowBuilder<TFlowReq, TFlowRes, TState> {
 
-        this.branch.target = {            
+        this.branch.target = {
             type: DecisionBranchTargetType.Error,
             getErrorMessage: getErrorMessage
         };

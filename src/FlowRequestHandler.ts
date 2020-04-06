@@ -1,6 +1,6 @@
 import fs = require('fs');
 import { FlowBuilder } from "./FlowBuilder";
-import { FlowDefinition, FlowStepType, DecisionBranchTarget, DecisionBranch, DecisionBranchTargetType, FlowStep, GotoFlowStep, DecisionFlowStep, DecisionFlowStepBase } from "./FlowDefinition";
+import { FlowDefinition, FlowStepType, DecisionBranchTarget, DecisionBranch, DecisionBranchTargetType, FlowStep, GotoFlowStep, DecisionFlowStep, DecisionFlowStepBase, DecisionBranchSummary } from "./FlowDefinition";
 import { IActivityRequestHandler, FlowHandlers } from "./FlowHandlers";
 import { FlowContext, FlowInstanceStackFrame } from "./FlowContext";
 
@@ -26,7 +26,6 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
 
         function append(text: string) { fs.appendFileSync(fileName, text); }
         function appendLine(text: string) { append(`${text}\n`); }
-        function getCanonicalName(name: string) { return name?.replace(/[^a-zA-Z_]/gi, '_'); }
 
         appendLine(`# ${this.flowName}`);
         appendLine('');
@@ -50,8 +49,8 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
                     appendLine(`${getCanonicalName(step.name)}`);
                     return;
                 }
-    
-                visitedNodes.add(step.name);                    
+
+                visitedNodes.add(step.name);
             }
 
             switch (step.type) {
@@ -78,36 +77,44 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
 
                 case FlowStepType.Decision:
                     const decisionStep = step as DecisionFlowStepBase;
-                    for (const branchTarget of decisionStep.caseTargets) {
-                        addBranchTarget(branchTarget);
+                    for (const summaries of decisionStep.caseSummaries) {
+                        addBranch(summaries);
                     }
-                    addBranchTarget(decisionStep.elseTarget);
+                    addBranch(decisionStep.elseSummary);
                     break;
 
                 default:
                     throw new Error(`Unhandled step.type: ${step.type}`);
             }
 
-            function addBranchTarget(branchTarget: DecisionBranchTarget) {
+            function getCanonicalName(name: string) { return name?.replace(/[^a-zA-Z_]/gi, '_'); }
 
-                appendLine(`${getCanonicalName(step.name)}{{"${step.name}"}} --> `);
+            function addBranch(summary: DecisionBranchSummary) {
 
-                switch (branchTarget.type) {
+                if (summary.target.type === DecisionBranchTargetType.Error) {
+                    return;
+                }
+                
+                append(`${getCanonicalName(step.name)}{{"${step.name}"}} --`);
+
+                if (summary.description?.length > 0) {
+                    appendLine(` "${summary.description}" -->`);                    
+                } else {
+                    appendLine('>');
+                }
+
+                switch (summary.target.type) {
                     case DecisionBranchTargetType.Continue:
                         appendNodes(stepIndex + 1, flowDefinition);
                         break;
 
                     case DecisionBranchTargetType.Goto:
-                        const targetIndex = flowDefinition.steps.findIndex(step => step.name === branchTarget.stepName);
+                        const targetIndex = flowDefinition.steps.findIndex(step => step.name === summary.target.stepName);
                         appendNodes(targetIndex, flowDefinition);
                         break;
 
                     case DecisionBranchTargetType.End:
                         appendLine('_End_([End])');
-                        break;
-
-                    case DecisionBranchTargetType.Error:
-                        appendLine('_Error_([Error])');
                         break;
 
                     default:
@@ -297,20 +304,29 @@ export abstract class FlowRequestHandler<TReq, TRes, TState> implements IActivit
 
     private performActivity(flowContext: FlowContext, stepIndex: number, step: any): number {
 
-        const stepRequest = new step.RequestType();
-        step.bindRequest(stepRequest, flowContext.currentStackFrame.state);
+        let stepResponse;
 
-        this.debugPreActivityRequest(step.name, stepRequest, flowContext.currentStackFrame.state);
+        if (step.RequestType === undefined) {
 
-        const mockResponse = flowContext.getMockResponse(step.name, stepRequest);
+            stepResponse = undefined;
 
-        const stepResponse =
-            mockResponse === undefined
-                ? flowContext.handlers.sendRequest(flowContext, step.RequestType, stepRequest)
-                : mockResponse;
+        } else {
 
-        if (stepResponse === undefined) {
-            return undefined;
+            const stepRequest = new step.RequestType();
+            step.bindRequest(stepRequest, flowContext.currentStackFrame.state);
+
+            this.debugPreActivityRequest(step.name, stepRequest, flowContext.currentStackFrame.state);
+
+            const mockResponse = flowContext.getMockResponse(step.name, stepRequest);
+
+            stepResponse =
+                mockResponse === undefined
+                    ? flowContext.handlers.sendRequest(flowContext, step.RequestType, stepRequest)
+                    : mockResponse;
+
+            if (stepResponse === undefined) {
+                return undefined;
+            }
         }
 
         step.bindState(stepResponse, flowContext.currentStackFrame.state);

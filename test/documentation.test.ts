@@ -5,7 +5,7 @@ import { SwitchTestFlowHandler } from './switchFlow.test';
 
 describe('Documentation', () => {
 
-    it.only('can output documentation', () => {
+    it('can output documentation', () => {
 
         const fileName = 'test\\documentation.md';
 
